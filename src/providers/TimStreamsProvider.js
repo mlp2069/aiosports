@@ -8,7 +8,7 @@ class TimStreamsProvider extends BaseProvider {
   constructor(opts) {
     super(opts);
     this.name = 'TimStreams';
-    this.apiUrl = 'https://timstreams.st/api/live-upcoming';
+    this.apiUrl = 'https://timst.cfd/api/live-upcoming';
     
     this.fetchData = this.circuitBreaker.wrap(`${this.name}_fetch`, async () => {
       const res = await this.proxyFetch(this.apiUrl, { signal: AbortSignal.timeout(15000) });
@@ -130,7 +130,7 @@ class TimStreamsProvider extends BaseProvider {
       const res = await this.proxyFetch(embedUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
-          'Referer': 'https://timstreams.st/'
+          'Referer': 'https://timst.cfd/'
         },
         signal: AbortSignal.timeout(10000)
       });
