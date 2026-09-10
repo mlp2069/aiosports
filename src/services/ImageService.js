@@ -8,6 +8,8 @@
  *     caller can fall back to a generated placeholder.
  *   - svgPlaceholder(text, color): generates a category-colored poster card as
  *     an SVG string. Replaces the old external placehold.co dependency.
+ *   - svgMatchup(...): composes a two-crest "A vs B" card from team logos that
+ *     TeamLogoService resolved, with the logos inlined as data URIs.
  *   - proxyUrl(baseUrl, sourceUrl, opts): builds the /img proxy URL that Nuvio
  *     fetches; the proxy serves the cached image or the generated placeholder,
  *     so a dead source URL can never produce a broken image in the client.
@@ -49,26 +51,119 @@ function escapeXml(s) {
 }
 
 /**
+ * Break text into display lines. Explicit newlines are honoured first; any
+ * resulting line longer than maxChars is word-wrapped rather than truncated,
+ * so "Northwestern Oklahoma State Rangers" reads in full instead of becoming
+ * "Northwestern Oklahoma Sta…".
+ */
+function wrapLines(text, maxChars, maxLines) {
+  const out = [];
+  const paras = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  for (const para of paras) {
+    if (para.length <= maxChars) { out.push(para); continue; }
+    let line = '';
+    for (const word of para.split(/\s+/)) {
+      if (!line) {
+        line = word;
+      } else if ((line + ' ' + word).length <= maxChars) {
+        line += ' ' + word;
+      } else {
+        out.push(line);
+        line = word;
+      }
+      // A single word longer than the budget (rare) still has to be cut.
+      while (line.length > maxChars) {
+        out.push(line.slice(0, maxChars - 1) + '-');
+        line = line.slice(maxChars - 1);
+      }
+    }
+    if (line) out.push(line);
+  }
+  if (!out.length) return ['Live Sports'];
+  if (out.length > maxLines) {
+    const kept = out.slice(0, maxLines);
+    kept[maxLines - 1] = kept[maxLines - 1].replace(/[\s.]+$/, '') + '…';
+    return kept;
+  }
+  return out;
+}
+
+function accentColor(color) {
+  return /^([0-9a-fA-F]{6})$/.test(String(color)) ? `#${color}` : '#333333';
+}
+
+/**
  * Generated poster card: dark background, category-colored accent bar and the
- * title split across up to three centered lines. Replaces placehold.co.
+ * title word-wrapped across centered lines. Replaces placehold.co.
  */
 function svgPlaceholder(text, color, w = 800, h = 450) {
-  const bg = /^([0-9a-fA-F]{6})$/.test(String(color)) ? `#${color}` : '#333333';
-  const rawLines = String(text || 'Live Sports').split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3);
-  const lines = rawLines.length ? rawLines : ['Live Sports'];
-  const fontSize = lines.length >= 3 ? 40 : lines.length === 2 ? 48 : 56;
-  const startY = h / 2 - ((lines.length - 1) * (fontSize + 10)) / 2 + fontSize * 0.35;
+  const bg = accentColor(color);
+  const lines = wrapLines(text, 24, 5);
+  const fontSize = lines.length >= 5 ? 34 : lines.length === 4 ? 40 : lines.length === 3 ? 44 : lines.length === 2 ? 52 : 58;
+  const lead = fontSize + 12;
+  const startY = h / 2 - ((lines.length - 1) * lead) / 2;
   const textEls = lines.map((line, i) => {
-    let l = line;
-    if (l.length > 26) l = l.slice(0, 25) + '…';
-    const y = startY + i * (fontSize + 10);
-    return `<text x="50%" y="${y.toFixed(1)}" font-family="Segoe UI, Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${escapeXml(l)}</text>`;
+    const y = startY + i * lead;
+    const isVs = /^(vs|v|at|-)$/i.test(line);
+    return `<text x="50%" y="${y.toFixed(1)}" font-family="Segoe UI, Arial, sans-serif" font-size="${isVs ? Math.round(fontSize * 0.6) : fontSize}" font-weight="${isVs ? 400 : 700}" fill="${isVs ? '#9aa0a6' : '#ffffff'}" text-anchor="middle" dominant-baseline="middle">${escapeXml(line)}</text>`;
   }).join('\n  ');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
   <rect width="${w}" height="${h}" fill="#111111"/>
   <rect x="0" y="0" width="${w}" height="10" fill="${bg}"/>
   <rect x="0" y="${h - 10}" width="${w}" height="10" fill="${bg}"/>
   ${textEls}
+</svg>`;
+}
+
+/**
+ * Two-crest matchup card. Logos arrive as { buffer, contentType } entries from
+ * getImage() and are inlined as data URIs — an SVG that referenced them by URL
+ * would render blank in clients that refuse external refs inside SVG.
+ *
+ * A missing logo degrades to the team's name in that half, so a one-sided
+ * resolve still produces a better card than the plain placeholder.
+ */
+function svgMatchup(aName, bName, aEntry, bEntry, color, w = 800, h = 450) {
+  const bg = accentColor(color);
+  const cx = [w * 0.27, w * 0.73];
+  const crest = 240;
+  const crestMid = h * 0.44;
+  const crestY = crestMid - crest / 2;
+
+  const half = (name, entry, i) => {
+    const centerX = cx[i];
+    if (entry && entry.buffer) {
+      const uri = `data:${entry.contentType};base64,${entry.buffer.toString('base64')}`;
+      return `<image x="${(centerX - crest / 2).toFixed(1)}" y="${crestY.toFixed(1)}" width="${crest}" height="${crest}" preserveAspectRatio="xMidYMid meet" href="${uri}" xlink:href="${uri}"/>`;
+    }
+    const lines = wrapLines(name, 14, 3);
+    const fs = 30;
+    const y0 = crestY + crest / 2 - ((lines.length - 1) * (fs + 6)) / 2;
+    return lines.map((l, j) =>
+      `<text x="${centerX.toFixed(1)}" y="${(y0 + j * (fs + 6)).toFixed(1)}" font-family="Segoe UI, Arial, sans-serif" font-size="${fs}" font-weight="700" fill="#e8eaed" text-anchor="middle" dominant-baseline="middle">${escapeXml(l)}</text>`
+    ).join('\n  ');
+  };
+
+  // The caption repeats the name under the crest. When a half already fell back
+  // to showing the name in place of a crest, printing it twice just looks broken.
+  const caption = (name, entry, i) => {
+    if (!entry || !entry.buffer) return '';
+    const lines = wrapLines(name, 20, 2);
+    const fs = 26;
+    return lines.map((l, j) =>
+      `<text x="${cx[i].toFixed(1)}" y="${(h * 0.82 + j * (fs + 4)).toFixed(1)}" font-family="Segoe UI, Arial, sans-serif" font-size="${fs}" font-weight="600" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${escapeXml(l)}</text>`
+    ).join('\n  ');
+  };
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="#111111"/>
+  <rect x="0" y="0" width="${w}" height="10" fill="${bg}"/>
+  <rect x="0" y="${h - 10}" width="${w}" height="10" fill="${bg}"/>
+  ${half(aName, aEntry, 0)}
+  ${half(bName, bEntry, 1)}
+  <text x="50%" y="${crestMid.toFixed(1)}" font-family="Segoe UI, Arial, sans-serif" font-size="44" font-weight="300" fill="#6b7075" text-anchor="middle" dominant-baseline="middle">vs</text>
+  ${caption(aName, aEntry, 0)}
+  ${caption(bName, bEntry, 1)}
 </svg>`;
 }
 
@@ -172,10 +267,29 @@ function placeholderUrl(baseUrl, text, color) {
   return `${baseUrl}/img/placeholder?text=${encodeURIComponent(text || '')}&color=${color || '333333'}`;
 }
 
+/**
+ * Build the /img/matchup URL. At least one logo must be present — with neither,
+ * the caller should use placeholderUrl() instead.
+ */
+function matchupUrl(baseUrl, { a, b, aLogo, bLogo, color = '333333' }) {
+  if (!aLogo && !bLogo) return null;
+  const q = [
+    `a=${encodeURIComponent(a || '')}`,
+    `b=${encodeURIComponent(b || '')}`,
+    `color=${color}`
+  ];
+  if (aLogo) q.push(`al=${encodeURIComponent(aLogo)}`);
+  if (bLogo) q.push(`bl=${encodeURIComponent(bLogo)}`);
+  return `${baseUrl}/img/matchup?${q.join('&')}`;
+}
+
 module.exports = {
   svgPlaceholder,
+  svgMatchup,
+  wrapLines,
   getImage,
   proxyUrl,
   placeholderUrl,
+  matchupUrl,
   normalizeUrl
 };

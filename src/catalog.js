@@ -3,6 +3,7 @@ const { getChannelLogo } = require('./services/ChannelLogoService');
 const { prewarmMatch } = require('./streams');
 const { BASE_URL } = require('./config');
 const imageService = require('./services/ImageService');
+const teamLogoService = require('./services/TeamLogoService');
 
 /**
  * Accurately determines if an event is currently live right now.
@@ -99,18 +100,24 @@ function mapMatchToMetaPreview(match, config = {}) {
   
   // Channel logos come from the unified ChannelLogoService (tv-logos CDN + Wikimedia).
 
-  // Generate a clean, readable fallback poster using the match title
+  // Resolve both sides of the fixture to ESPN crests where we confidently can.
+  // Returns null for a non-fixture title (a 24/7 channel), and either logo may
+  // be null on its own — TeamLogoService declines rather than guessing.
+  const matchup = teamLogoService.resolveMatchup(match);
+
+  // Generate a clean, readable fallback poster using the match title.
+  // NOTE: never substitute match.category here. Replacing the teams with
+  // "AMERICAN_FOOTBALL" on long titles is what produced the blank-looking
+  // category cards; svgPlaceholder word-wraps, so long names are fine.
   let posterText = match.title;
-  if (match.team1 && match.team2 && match.team1.name && match.team2.name) {
+  if (matchup) {
+      posterText = `${matchup.a}\nvs\n${matchup.b}`;
+  } else if (match.team1 && match.team2 && match.team1.name && match.team2.name) {
       posterText = `${match.team1.name}\nvs\n${match.team2.name}`;
   } else {
       posterText = posterText.replace(/ vs /i, '\nvs\n').replace(/ - /i, '\n-\n');
   }
-  
-  if (posterText.length > 50) {
-      posterText = match.category.toUpperCase();
-  }
-  
+
   // Self-hosted fallback poster (replaces the external placehold.co dependency)
   const fallbackPoster = imageService.placeholderUrl(BASE_URL, posterText, color);
 
@@ -120,8 +127,17 @@ function mapMatchToMetaPreview(match, config = {}) {
   const buildImg = (sourceUrl, fbText, c) =>
     imageService.proxyUrl(BASE_URL, sourceUrl, { text: fbText, color: c });
 
+  // Matchup card built from the resolved crests, when we have at least one.
+  const matchupPoster = matchup
+    ? imageService.matchupUrl(BASE_URL, { ...matchup, color })
+    : null;
+
   let poster = fallbackPoster;
-  const channelLogo = getChannelLogo(match.title);
+
+  // Channel logos are keyed by naive substring, so "<Team> vs <Team> | ESPN"
+  // used to take ESPN's wordmark as its poster. Only consult the channel table
+  // for titles that are actually channels, i.e. not a two-sided fixture.
+  const channelLogo = matchup ? null : getChannelLogo(match.title);
   const team1Logo = match.team1 && match.team1.logo ? normalizeImageUrl(match.team1.logo) : null;
   const matchPoster = match.poster ? normalizeImageUrl(match.poster) : null;
   const matchThumb = match.thumbnail_url ? normalizeImageUrl(match.thumbnail_url) : null;
@@ -131,6 +147,8 @@ function mapMatchToMetaPreview(match, config = {}) {
 
   if (matchPoster) {
     poster = buildImg(matchPoster, posterText, color) || fallbackPoster;
+  } else if (matchupPoster) {
+    poster = matchupPoster;
   } else if (channelLogo) {
     poster = buildImg(channelLogo, match.title, '161616') || fallbackPoster;
     logo = channelLogo;

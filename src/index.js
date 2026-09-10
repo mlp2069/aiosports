@@ -143,6 +143,33 @@ app.get('/img', async (req, res) => {
   res.send(svg);
 });
 
+// /img/matchup?a=&b=&al=&bl=&color=  -> two-crest "A vs B" card.
+// The crests are fetched server-side and inlined as data URIs: an SVG that
+// referenced them by URL renders blank in clients that block external refs.
+app.get('/img/matchup', async (req, res) => {
+  const a = req.query.a || '';
+  const b = req.query.b || '';
+  const color = req.query.color || '333333';
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Content-Type', 'image/svg+xml');
+
+  const [aEntry, bEntry] = await Promise.all([
+    req.query.al ? imageService.getImage(req.query.al) : null,
+    req.query.bl ? imageService.getImage(req.query.bl) : null
+  ]);
+
+  if (!aEntry && !bEntry) {
+    // Both crests unreachable: fall back to the plain name card rather than
+    // serving an empty frame.
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.send(imageService.svgPlaceholder(`${a}\nvs\n${b}`, color));
+  }
+
+  res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  res.send(imageService.svgMatchup(a, b, aEntry, bEntry, color));
+});
+
 // ─── Shared safe HTTP client (impit + undici fallback) ───────────────────────
 // Works on Windows, Linux x64/ARM64, Alpine/musl. If impit native binary is
 // absent, all fetches silently use undici — streams continue to work.
