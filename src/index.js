@@ -2075,6 +2075,12 @@ app.use(getRouter(builder.getInterface()));
 app.get('/watch', (req, res) => {
   const mode     = req.query.mode;
   const title    = req.query.title || 'Live Sports';
+  // A web player plays straight from the CDN, so its playlist is not this
+  // server's to deepen (liveDelay.js). What a viewer who asked for extra
+  // buffer can still be given is a start further back in the window there is.
+  const watchBuffer = liveDelay.bufferSeconds(
+    req.query.buf === undefined ? process.env.LIVE_BUFFER_SECONDS : req.query.buf
+  );
 
   // ─── mode=extract — Client-side HLS extraction for IP-locked embed providers ─
   // Architecture: browser fetches /api/proxy-embed → runs extractor → plays via hls.js
@@ -2177,7 +2183,22 @@ app.get('/watch', (req, res) => {
         stage.style.display = 'none';
         video.style.display = 'block';
         if (Hls.isSupported()) {
-          const hls = new Hls({ liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 5, lowLatencyMode: true });
+          // Live tuning. On its own defaults hls.js starts three segments from
+          // the end, and lowLatencyMode makes that a target it chases: at
+          // liveMaxLatencyDurationCount 5 it hard-seeks back to the live edge
+          // the moment playback is twenty seconds behind, throwing the buffer
+          // away and starting the cycle over. Measured on this addon's sources,
+          // two of three publish in eight second bursts, so that drift is
+          // ordinary rather than exceptional. hls.js's own default for that
+          // setting is no limit at all. Chasing off, and a start further back
+          // for a viewer who asked for one.
+          const EXTRA = ${watchBuffer};
+          const liveOpts = EXTRA > 0
+          ? { liveSyncDuration: 12 + EXTRA, liveMaxLatencyDuration: 42 + EXTRA }
+          : { liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 15 };
+          const hls = new Hls(Object.assign({
+            lowLatencyMode: false, maxBufferLength: 60, backBufferLength: 30
+          }, liveOpts));
           hls.loadSource(url);
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
@@ -2434,12 +2455,25 @@ app.get('/watch', (req, res) => {
       // viewer's address with strangers watching the same stream through
       // public trackers, and pulled two unpinned scripts onto this origin.
       if (Hls.isSupported()) {
-        const hls = new Hls({
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 5,
-          lowLatencyMode: true,
+        // Live tuning. On its own defaults hls.js starts three segments from
+        // the end, and lowLatencyMode makes that a target it chases: at
+        // liveMaxLatencyDurationCount 5 it hard-seeks back to the live edge
+        // the moment playback is twenty seconds behind, throwing the buffer
+        // away and starting the cycle over. Measured on this addon's sources,
+        // two of three publish in eight second bursts, so that drift is
+        // ordinary rather than exceptional. hls.js's own default for that
+        // setting is no limit at all. Chasing off, and a start further back
+        // for a viewer who asked for one.
+        const EXTRA = ${watchBuffer};
+        const liveOpts = EXTRA > 0
+          ? { liveSyncDuration: 12 + EXTRA, liveMaxLatencyDuration: 42 + EXTRA }
+          : { liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 15 };
+        const hls = new Hls(Object.assign({
+          lowLatencyMode: false,
+          maxBufferLength: 60,
+          backBufferLength: 30,
           enableWorker: true
-        });
+        }, liveOpts));
         hls.loadSource(finalUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
