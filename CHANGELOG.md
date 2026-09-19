@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.5.0 (2026-09-19)
+
+A stream that never really breaks but keeps catching itself is the source's playlist, not your connection. Measured here over two minutes: TotalSportek publishes a segment every 4.02s like a metronome, while WatchFooty and TimStreams list four segments — sixteen and thirteen seconds — and publish in bursts, eight seconds of nothing and then two at once, eleven times between them. A player starts three segments from the end of a live playlist, so it holds about twelve seconds of video; one of those pauses spends most of it and the next slow chunk is a stall. Extra Buffer, in `/configure` or `LIVE_BUFFER_SECONDS`, hands the player a deeper window of what the source has already published and tells it to start further back in it. Off by default, and off stays exactly as it was.
+
+### Features
+
+* **streams:** an extra buffer for sources that publish in bursts. The segments a source publishes are remembered and kept in what is served after the source drops them — measured on real playlists, a sixteen second window becomes a hundred and four, and all 56 segments in the deepened windows still fetched — and #EXT-X-START tells the player how far back to begin, which ExoPlayer reads before anything else. The live edge never moves and the media sequence only goes forward; a host that deletes a segment when it stops listing it is found out and served its own window unchanged ([cbb99c4](https://github.com/mlp2069/aiosports/commit/cbb99c4)) 
+
+### Bug Fixes
+
+* **player:** stop the web player seeking back to the live edge on healthy streams. liveMaxLatencyDurationCount was 5 where hls.js defaults to no limit at all, so twenty seconds of drift reset playback to the live edge and threw the buffer away — and twenty seconds of drift is ordinary on a source that pauses eight seconds at a time ([d69fa01](https://github.com/mlp2069/aiosports/commit/d69fa01))
+* **docs:** the FAQ said the prebuilt image was amd64 only, which it has not been since v1.3.0 ([cbb99c4](https://github.com/mlp2069/aiosports/commit/cbb99c4))
+
 ## v1.4.1 (2026-09-16)
 
 A follow-up to v1.4.0. Every local station is now a tile of its own — FOX 32 Chicago, NBC 5 Chicago, ABC 15 Phoenix and about 350 more — instead of a row buried inside its network's tile. The release also reports its own version correctly again, and release builds no longer fail on their first attempt. No reinstall is needed.
