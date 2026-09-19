@@ -137,6 +137,7 @@ Settings live in `.env`. Copy `.env.example` and edit it, and restart after a ch
 | `HIDE_EMPTY_CHANNELS` | `0` lists every channel, even ones with no streams right now. |
 | `TRUST_PROXY` | Only for a reverse proxy on a public address. See `.env.example`. |
 | `RATE_LIMIT` | `off` disables the per-address request limits. |
+| `LIVE_BUFFER_SECONDS` | Seconds of extra buffer for every viewer who hasn't chosen their own. `0`, the default, plays as close to live as the source allows. |
 
 `.env.example` explains the rest, including `DATA_DIR`, `LINK_SECRET` and the source-specific options.
 
@@ -219,13 +220,15 @@ StreamFree, TimStreams, Streamed.pk, SportyHunter, WatchFooty, CDNLive, StreamSp
 
 **Streamed's streams buffer in Nuvio but play in a browser.** Streamed's CDN only answers clients that look like a browser, so the server fetches its video chunks for the player and relays them. Any host that behaves that way is found out by trying one chunk and relayed from then on; every other host's chunks go straight to the player. Relaying costs the server the stream's bandwidth, a few hundred kilobytes every few seconds per viewer (`PROXY_SEGMENT_HOSTS` in `.env.example`).
 
+**A stream microbuffers -- it never really breaks, but it keeps catching itself.** Usually the source, not the connection. Sources here publish a four-segment playlist and some of them publish in bursts: measured on two of three, eight seconds of nothing and then two segments at once. A player starts three segments from the end of a playlist, which is about twelve seconds of video, so an eight-second pause spends most of the cushion and anything else on top of it stalls. Set **Extra Buffer** in `/configure` (or `LIVE_BUFFER_SECONDS` for everyone) and the server hands the player a deeper window of what the source has already published, and tells it to start further back in it. You see the game that much later, and the bursts stop mattering. Sources that delete a segment the moment they stop listing it are found out and left alone.
+
 **My saved settings were lost after an update.** Profiles are stored in `DATA_DIR`. Compose keeps them on the `aiosports-data` volume. With `docker run`, add `-v aiosports-data:/data -e DATA_DIR=/data`.
 
 **Port 7000 is already in use.** Change the left side of `"7000:7000"` in `docker-compose.yml`, for example to `"7100:7000"`.
 
 **Can I host it on Render, Vercel or Railway?** It's not recommended. Free app hosts tend to suspend apps that scrape websites or relay media. A spare computer, a Raspberry Pi or a small VPS works better.
 
-**Does it work on a Raspberry Pi?** Yes. Build from source with the Quick start steps, because the prebuilt image is amd64 only.
+**Does it work on a Raspberry Pi?** Yes. The prebuilt image ships for arm64 as well as amd64, so `docker compose up -d` pulls the right one; building from source with the Quick start steps also works.
 
 ## Development
 

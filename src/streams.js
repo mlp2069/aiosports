@@ -1,4 +1,5 @@
 const container = require('./container');
+const { bufferSeconds } = require('./liveDelay');
 const { stationOrder } = require('./services/StationLabel');
 const { parseMarkets, marketsSetting } = require('./services/LocalMarkets');
 
@@ -873,6 +874,22 @@ async function handleStream(type, id, config) {
   streams.push(...spread);
 
   for (const s of streams) { delete s.station; delete s.stationSort; }
+
+  // The extra buffer travels on the link, because the manifest proxy serves
+  // every viewer of a stream from one remembered window and only the link
+  // says how deep this viewer wants it (liveDelay.js). A viewer who has
+  // turned it off says so rather than staying quiet, so that their choice
+  // outranks whatever the instance defaults to.
+  const asked = config && config.buffer;
+  if (asked !== undefined && asked !== '') {
+    const want = bufferSeconds(asked);
+    for (const s of streams) {
+      if (s.url && s.url.includes('/api/manifest') && !/[?&]buf=/.test(s.url)) s.url += `&buf=${want}`;
+      else if (!s.url && s.externalUrl && s.externalUrl.includes('/watch?') && !/[?&]buf=/.test(s.externalUrl)) {
+        s.externalUrl += `&buf=${want}`;
+      }
+    }
+  }
 
   // Verification now happens once per mint (mintVerifiedSources), not per request.
   // Adaptive per-source TTLs keep tokens fresh, so clients may hold the list 30s.

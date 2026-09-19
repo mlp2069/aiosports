@@ -723,6 +723,17 @@
     </div>
 
     <div class="section">
+      <h3>Extra Buffer</h3>
+      <p class="hint">A stream that never really breaks but keeps catching itself is usually a source publishing in bursts — eight seconds of nothing, then two segments at once. Starting further behind the live edge rides those out, at the cost of seeing everything that much later. Off plays as close to live as the source allows:</p>
+      <div class="toggle-row" id="buffer">
+        <button type="button" class="toggle active" data-value="0">⚡ Off</button>
+        <button type="button" class="toggle" data-value="10">⏳ 10s</button>
+        <button type="button" class="toggle" data-value="20">⏳ 20s</button>
+        <button type="button" class="toggle" data-value="30">⏳ 30s</button>
+      </div>
+    </div>
+
+    <div class="section">
       <h3>Stream Order</h3>
       <p class="hint">Direct streams play in the app. Web streams open a browser. Select which type of streams should be shown first, or tap the selected one again to clear it and leave them unordered:</p>
       <div class="toggle-row" id="streamOrder">
@@ -1389,6 +1400,27 @@
     const paintSortBy = (value) => sortByRow.querySelectorAll('.toggle')
       .forEach(t => t.classList.toggle('active', t.dataset.value === value));
 
+    // Extra buffer. Off is painted when the link says nothing, which is not
+    // quite the same as the link saying off: an instance can default to a
+    // buffer for every viewer, and only a choice actually made here should
+    // outrank that. So nothing is carried until this row is touched.
+    let bufferTouched = false;
+    const bufferRow = document.getElementById('buffer');
+    bufferRow.addEventListener('click', (e) => {
+      const btn = e.target.closest('.toggle');
+      if (!btn) return;
+      e.preventDefault();
+      bufferTouched = true;
+      bufferRow.querySelectorAll('.toggle').forEach(t => t.classList.toggle('active', t === btn));
+      updateLink();
+    });
+    const bufferValue = () => {
+      const active = bufferRow.querySelector('.toggle.active');
+      return active ? active.dataset.value : '0';
+    };
+    const paintBuffer = (value) => bufferRow.querySelectorAll('.toggle')
+      .forEach(t => t.classList.toggle('active', t.dataset.value === value));
+
     // Addon identity, edited in a dialog rather than by typing into the heading.
     // A heading that is secretly a text field is a heading people do not realise
     // they can change; a pencil says so.
@@ -1625,6 +1657,10 @@
       ? existingConfig.sortBy
       : impliedSortBy());
 
+    paintBuffer(['0', '10', '20', '30'].indexOf(String(existingConfig.buffer)) !== -1
+      ? String(existingConfig.buffer)
+      : '0');
+
     // The tab list comes from the addon itself, asked for with no sports key so
     // nothing is filtered by a saved selection -- but with a placeholder team,
     // which is the only way to be handed every tab. The server drops My Teams
@@ -1740,6 +1776,10 @@
       // Carried only when it differs from what the addon would do anyway, so
       // ordering your sources does not also lengthen the URL to say so.
       if (sortByValue() && sortByValue() !== impliedSortBy()) config.sortBy = sortByValue();
+
+      // Carried once it has been chosen -- including off, which is a choice
+      // an instance-wide default has to lose to.
+      if (bufferTouched || existingConfig.buffer !== undefined) config.buffer = bufferValue();
 
       // 12-hour is the default, so only 24 needs carrying.
       if (timeFormatValue() === '24') config.timeFormat = '24';
@@ -2051,7 +2091,8 @@
     // the settings they are meant to cover.
     const KNOWN_KEYS = [
       'teams', 'markets', 'timezone', 'sports', 'sources', 'sourceOrder', 'streamOrder', 'sortBy', 'timeFormat',
-      'addonName', 'addonLogo', 'addonDescription', 'catalogOrder', 'catalogNames', 'catalogOptions'
+      'addonName', 'addonLogo', 'addonDescription', 'catalogOrder', 'catalogNames', 'catalogOptions',
+      'buffer'
     ];
     // Not secret -- this addon holds no keys or tokens -- but personal: together
     // they say roughly where someone lives and what they follow. In by default,

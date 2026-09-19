@@ -81,12 +81,18 @@ const OPAQUE = /^(data|skd|blob|about):/i;
  * segmentPolicy decided for this playlist); without it the configured
  * domains apply.
  */
-function rewritePlaylist(body, { targetUrl, finalUrl, referer = '', origin = '', hosts } = {}) {
+function rewritePlaylist(body, { targetUrl, finalUrl, referer = '', origin = '', hosts, buf = 0 } = {}) {
   const exact = hosts ? new Set(hosts.map(h => String(h).toLowerCase())) : null;
   const relayed = (host) => (exact ? exact.has(host.toLowerCase()) : needsSegmentProxy(host));
   const absolute = (raw) => absoluteEntry(raw, targetUrl, finalUrl);
   const route = (abs, kind = '') => {
-    if (abs.includes('.m3u8')) return manifestPath(abs, referer, origin);
+    // A variant playlist is read back through here, so the buffer the viewer
+    // asked for has to travel with it: the media playlist it names is the one
+    // the window is deepened in (liveDelay.js).
+    if (abs.includes('.m3u8')) {
+      const link = manifestPath(abs, referer, origin);
+      return buf > 0 ? `${link}&buf=${buf}` : link;
+    }
     let host = '';
     try { host = new URL(abs).hostname; } catch (err) { return abs; }
     if (relayed(host)) return segmentPath(abs, referer, origin, kind);

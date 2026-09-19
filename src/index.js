@@ -992,7 +992,8 @@ app.get('/img/matchup', async (req, res) => {
 const { safeFetch: _safeFetch, getImpit: _getImpit } = require('./impitClient');
 const { assertPublicUrl, publicAgent } = require('./netGuard');
 const { verifyManifestQuery, verifySegmentQuery } = require('./manifestLink');
-const { rewritePlaylist } = require('./playlistRewrite');
+const { rewritePlaylist, absoluteEntry } = require('./playlistRewrite');
+const liveDelay = require('./liveDelay');
 const { relayHostsFor, isRelayedHost } = require('./segmentPolicy');
 
 // A playlist is kilobytes. Anything past this is not one.
@@ -1118,7 +1119,17 @@ app.get('/api/manifest', async (req, res) => {
   const referer = req.query.referer || 'https://embed.st/';
   const origin = req.query.origin || 'https://embed.st';
 
-  const cacheKey = `${targetUrl}|${referer}|${origin}`;
+  // How much extra buffer this viewer asked for (liveDelay.js). The link
+  // carries it; an instance-wide default stands in when it does not, so an
+  // addon installed before this existed still gets the owner's setting.
+  const buf = liveDelay.bufferSeconds(
+    req.query.buf === undefined ? process.env.LIVE_BUFFER_SECONDS : req.query.buf
+  );
+  // What this stream has published is remembered once, for every viewer of
+  // it; what goes out differs by the buffer asked for, so the cache holds one
+  // body per buffer.
+  const streamKey = `${targetUrl}|${referer}|${origin}`;
+  const cacheKey = `${streamKey}|${buf}`;
   const entry = manifestCacheGet(cacheKey);
   if (entry && entry.negative) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1148,7 +1159,27 @@ app.get('/api/manifest', async (req, res) => {
         // hosts those are is known, or found out once per host by trying a
         // chunk (segmentPolicy.js).
         const hosts = await relayHostsFor(out, targetUrl, finalUrl, referer, origin);
-        const rewrittenResult = rewritePlaylist(out, { targetUrl, finalUrl, referer, origin, hosts });
+
+        // The extra buffer (liveDelay.js), applied to the source's own
+        // addresses so that what is remembered does not depend on which of
+        // them are relayed. Every media playlist is remembered even when no
+        // buffer was asked for: the viewer who asks for one next is only
+        // served a deep window if there is already something to fill it.
+        const media = (uri) => absoluteEntry(uri, targetUrl, finalUrl);
+        const { body: buffered, parsed, state } = liveDelay.applyBuffer(out, {
+          key: streamKey,
+          seconds: buf,
+          retained: (_st, pl) => pl.segs.length > 0 && liveDelay.retentionOk(media(pl.segs[0].uri))
+        });
+        // Whether this host keeps a segment it has stopped listing is asked
+        // once, of the oldest one it has dropped, and the answer is for the
+        // playlists after this one.
+        if (parsed && state) {
+          const gone = liveDelay.expiredSegments(state, parsed);
+          if (gone.length) liveDelay.askRetention(media(gone[0].uri), referer, origin).catch(() => {});
+        }
+
+        const rewrittenResult = rewritePlaylist(buffered, { targetUrl, finalUrl, referer, origin, hosts, buf });
         manifestCacheSet(cacheKey, rewrittenResult);
         return rewrittenResult;
       })().finally(() => {
