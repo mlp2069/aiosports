@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.6.0 (2026-09-20)
+
+Streams used to die partway through a match and then vanish from the list when you refreshed. The stream was still on air — only its address had gone stale. Several sources hand out a playlist address that carries an expiry, and TotalSportek's lasts about thirty minutes, which is halfway through a football match. Watched one expire on the clock: a playlist forty seconds before the advertised time, and a 403 from the CDN thirty-six seconds after it. The addon now notices that answer, re-resolves the source, and serves the same feed under a fresh address without the player ever knowing.
+
+### Features
+
+* **streams:** re-mint a stream whose token has expired instead of letting it die. The feed is recognised in the freshly resolved list by reducing addresses to a skeleton — epoch and opaque path segments blanked, token-named query parameters dropped — so TotalSportek's `path` hash and WatchFooty's stream number still identify it while their tokens and expiries do not, and a re-mint cannot move you to a different feed of the match. Bounded to one attempt per address per thirty seconds and three in all, so a genuinely dead stream never becomes a hammer on the provider ([4a4358c](https://github.com/mlp2069/aiosports/commit/4a4358c))
+
 ## v1.5.1 (2026-09-20)
 
 Two reliability fixes. 🔴 Live Now was showing matches that had finished — four of the eight tiles at the top of it returned no streams at all, between 3.8 and 5.3 hours past kickoff, because a provider's "live" flag was believed forever and none of the six providers that set it ever takes it back. And a stream that answered once with a timeout or a 503 was dropped outright, even though the code already knew that answer said nothing about the stream. Both are now held to the evidence.
