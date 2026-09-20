@@ -1,5 +1,6 @@
 const container = require('./container');
 const { bufferSeconds } = require('./liveDelay');
+const remint = require('./remint');
 const { stationOrder } = require('./services/StationLabel');
 const { parseMarkets, marketsSetting } = require('./services/LocalMarkets');
 
@@ -449,6 +450,18 @@ async function verifyStreams(streams, cacheKey, m3u8Parser, resolveCache, opts =
 
 // Mint streams for a single source and health-verify them before they enter the
 // cache, so verification runs once per mint instead of on every request.
+/** The upstream address, referer and origin inside one of our proxy links. */
+function proxyTarget(rowUrl) {
+  if (!rowUrl || !rowUrl.includes('/api/manifest')) return null;
+  try {
+    const q = new URL(rowUrl, 'http://localhost').searchParams;
+    const url = q.get('url');
+    return url ? { url, referer: q.get('referer') || '', origin: q.get('origin') || '' } : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 async function mintVerifiedSources(src, match, config, cacheKey, opts = {}) {
   const resolveCache = container.resolve('streamResolveCache');
   const m3u8Parser = container.resolve('m3u8Parser');
@@ -468,8 +481,38 @@ async function mintVerifiedSources(src, match, config, cacheKey, opts = {}) {
   for (const s of verified) {
     const source = s._source || src.source;
     s.score = streamScorer.calculateScore(s, source, sourceHealth(source));
+    // What this address was minted for, so it can be minted again when its
+    // token expires mid-match (remint.js).
+    const target = proxyTarget(s.url);
+    if (target) remint.remember(target.url, { src, match, config });
   }
   return verified;
+}
+
+/**
+ * A fresh address for a stream whose own has expired.
+ *
+ * The source that produced it is resolved again -- which is what mints a new
+ * token -- and the feed that matches the dead address is picked out of the
+ * result. Returns null when the source is not known, when it no longer offers
+ * anything, or when nothing in what it offers is recognisably the same feed;
+ * in each case the caller is no worse off than before.
+ */
+async function remintUpstream(deadUrl) {
+  const record = remint.lookup(deadUrl);
+  if (!record) return null;
+  try {
+    // Minted without a cache key: this must go to the provider, not to the
+    // cache entry that is holding the address that just failed.
+    const fresh = await mintVerifiedSources(record.src, record.match, record.config, null, {});
+    const targets = (fresh || []).map(row => proxyTarget(row.url)).filter(Boolean);
+    const pick = remint.pickFresh(deadUrl, targets.map(t => t.url));
+    if (!pick) return null;
+    return targets.find(t => t.url === pick) || null;
+  } catch (err) {
+    console.log(`[Remint] could not re-mint: ${err.message}`);
+    return null;
+  }
 }
 
 // Prewarm: mint tokens for a match's top sources before the user clicks
@@ -1045,6 +1088,8 @@ async function countChannelStreams(matchId) {
 
 module.exports = {
   handleStream,
+  remintUpstream,
+  _proxyTarget: proxyTarget,
   prewarmMatch,
   countChannelStreams,
   _sourceLabel: sourceLabel,

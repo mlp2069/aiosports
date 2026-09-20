@@ -34,7 +34,7 @@ const { builder } = require('./manifest');
 const crypto = require('crypto');
 const cardWarmer = require('./services/CardWarmer');
 const { handleCatalog, handleMeta } = require('./catalog');
-const { handleStream } = require('./streams');
+const { handleStream, remintUpstream } = require('./streams');
 const { PORT, BASE_URL, getRequestBaseUrl } = require('./config');
 const container = require('./container');
 
@@ -994,6 +994,7 @@ const { assertPublicUrl, publicAgent } = require('./netGuard');
 const { verifyManifestQuery, verifySegmentQuery } = require('./manifestLink');
 const { rewritePlaylist, absoluteEntry } = require('./playlistRewrite');
 const liveDelay = require('./liveDelay');
+const remint = require('./remint');
 const { relayHostsFor, isRelayedHost } = require('./segmentPolicy');
 
 // A playlist is kilobytes. Anything past this is not one.
@@ -1148,24 +1149,58 @@ app.get('/api/manifest', async (req, res) => {
     let fetchPromise = manifestInFlight.get(cacheKey);
     if (!fetchPromise) {
       fetchPromise = (async () => {
-        const { body: out, url: finalUrl } = await fetchUpstreamManifest(targetUrl, referer, origin);
-        if (!out.includes('#EXT')) {
-          console.error('[ManifestProxy] Upstream returned non-m3u8 body for', targetUrl);
-          throw new Error('Upstream returned non-m3u8 body');
+        // An address that has already been re-minted is used straight away;
+        // the player is still polling the one it was given (remint.js).
+        const standIn = remint.getSubstitute(targetUrl);
+        let askUrl = standIn || targetUrl;
+        let askReferer = referer;
+        let askOrigin = origin;
+
+        const fetchOnce = async () => {
+          const got = await fetchUpstreamManifest(askUrl, askReferer, askOrigin);
+          if (!got.body.includes('#EXT')) throw new Error('Upstream returned non-m3u8 body');
+          return got;
+        };
+
+        let out, finalUrl;
+        try {
+          ({ body: out, url: finalUrl } = await fetchOnce());
+        } catch (err) {
+          // A refusal, or a 200 that is not a playlist, is how a source says
+          // the token in the address has expired -- measured: TotalSportek's
+          // lasts about thirty minutes, which is halfway through a match. The
+          // stream is still on; only the address is stale. Re-resolving the
+          // source produces the same feed under a fresh address, and the
+          // player never learns anything happened (remint.js).
+          const code = /^HTTP (\d+)$/.exec(err.message);
+          const expired = err.message === 'Upstream returned non-m3u8 body'
+            || (code && remint.looksExpired({ status: Number(code[1]) }));
+          if (!expired || !remint.mayAttempt(targetUrl)) throw err;
+          remint.noteAttempt(targetUrl);
+          const fresh = await remintUpstream(targetUrl);
+          if (!fresh || !fresh.url) throw err;
+          remint.setSubstitute(targetUrl, fresh.url);
+          let freshHost = '';
+          try { freshHost = new URL(fresh.url).hostname; } catch (e) { freshHost = 'upstream'; }
+          console.log(`[ManifestProxy] re-minted an expired address (${err.message}) on ${freshHost}`);
+          askUrl = fresh.url;
+          if (fresh.referer) askReferer = fresh.referer;
+          if (fresh.origin) askOrigin = fresh.origin;
+          ({ body: out, url: finalUrl } = await fetchOnce());
         }
 
         // Every address made absolute, sub-playlists and the media of hosts
         // that refuse a player pointed back here (playlistRewrite.js). Which
         // hosts those are is known, or found out once per host by trying a
         // chunk (segmentPolicy.js).
-        const hosts = await relayHostsFor(out, targetUrl, finalUrl, referer, origin);
+        const hosts = await relayHostsFor(out, askUrl, finalUrl, askReferer, askOrigin);
 
         // The extra buffer (liveDelay.js), applied to the source's own
         // addresses so that what is remembered does not depend on which of
         // them are relayed. Every media playlist is remembered even when no
         // buffer was asked for: the viewer who asks for one next is only
         // served a deep window if there is already something to fill it.
-        const media = (uri) => absoluteEntry(uri, targetUrl, finalUrl);
+        const media = (uri) => absoluteEntry(uri, askUrl, finalUrl);
         const { body: buffered, parsed, state } = liveDelay.applyBuffer(out, {
           key: streamKey,
           seconds: buf,
@@ -1176,10 +1211,10 @@ app.get('/api/manifest', async (req, res) => {
         // playlists after this one.
         if (parsed && state) {
           const gone = liveDelay.expiredSegments(state, parsed);
-          if (gone.length) liveDelay.askRetention(media(gone[0].uri), referer, origin).catch(() => {});
+          if (gone.length) liveDelay.askRetention(media(gone[0].uri), askReferer, askOrigin).catch(() => {});
         }
 
-        const rewrittenResult = rewritePlaylist(buffered, { targetUrl, finalUrl, referer, origin, hosts, buf });
+        const rewrittenResult = rewritePlaylist(buffered, { targetUrl: askUrl, finalUrl, referer: askReferer, origin: askOrigin, hosts, buf });
         manifestCacheSet(cacheKey, rewrittenResult);
         return rewrittenResult;
       })().finally(() => {
