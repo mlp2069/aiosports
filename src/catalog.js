@@ -302,6 +302,34 @@ function prettifyName(name) {
     .trim();
 }
 
+// How long an event of each kind can still be on, measured from kickoff.
+const EVENT_DURATIONS = {
+  cricket: 8 * 60 * 60 * 1000,
+  mma: 6 * 60 * 60 * 1000,
+  fighting: 6 * 60 * 60 * 1000,
+  boxing: 5 * 60 * 60 * 1000,
+  motorsport: 4 * 60 * 60 * 1000,
+  american_football: 4 * 60 * 60 * 1000,
+  baseball: 3.5 * 60 * 60 * 1000,
+  basketball: 3 * 60 * 60 * 1000,
+  tennis: 4 * 60 * 60 * 1000,
+  golf: 6 * 60 * 60 * 1000,
+  football: 2.5 * 60 * 60 * 1000,
+  rugby: 2.5 * 60 * 60 * 1000,
+  hockey: 3 * 60 * 60 * 1000,
+  darts: 4 * 60 * 60 * 1000
+};
+const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000;
+function eventDurationMs(category) {
+  return EVENT_DURATIONS[category] || DEFAULT_EVENT_DURATION_MS;
+}
+
+// Stoppage, extra time, a rain delay, a provider whose kickoff is the time the
+// match was scheduled rather than the time it started. Generous on purpose:
+// dropping a match that is still being played is a worse failure than a tile
+// that lingers a little.
+const LIVE_STATUS_GRACE_MS = 45 * 60 * 1000;
+
 /**
  * Accurately determines if an event is currently live right now.
  * 24/7 networks are always live.
@@ -317,9 +345,17 @@ function isMatchLive(match) {
     return false;
   }
 
-  // 2. Explicit live status from provider
+  // 2. Explicit live status from provider, for as long as the event could
+  // still be on. Six providers stamp 'live' and not one of them ever takes it
+  // back, so a card stayed red until the provider stopped listing the event
+  // entirely: an Austria GP session was still LIVE 6.2 hours after it started,
+  // while every football match on the same board had aged out correctly. The
+  // status is still believed -- it is simply held to the same clock as every
+  // other route through this function.
   if (match.status === 'live' || match.status === 'in' || match.status === 'in_progress') {
-    return true;
+    const startedAt = match.date ? parseInt(match.date, 10) : 0;
+    if (!startedAt) return true;   // nothing to hold it against
+    return Date.now() <= startedAt + eventDurationMs(match.category) + LIVE_STATUS_GRACE_MS;
   }
 
   // 3. Explicit upcoming / pre-match status from provider
@@ -337,25 +373,7 @@ function isMatchLive(match) {
       return false;
     }
 
-    const durations = {
-      cricket: 8 * 60 * 60 * 1000,
-      mma: 6 * 60 * 60 * 1000,
-      fighting: 6 * 60 * 60 * 1000,
-      boxing: 5 * 60 * 60 * 1000,
-      motorsport: 4 * 60 * 60 * 1000,
-      american_football: 4 * 60 * 60 * 1000,
-      baseball: 3.5 * 60 * 60 * 1000,
-      basketball: 3 * 60 * 60 * 1000,
-      tennis: 4 * 60 * 60 * 1000,
-      golf: 6 * 60 * 60 * 1000,
-      football: 2.5 * 60 * 60 * 1000,
-      rugby: 2.5 * 60 * 60 * 1000,
-      hockey: 3 * 60 * 60 * 1000,
-      darts: 4 * 60 * 60 * 1000
-    };
-    const maxDuration = durations[match.category] || (3 * 60 * 60 * 1000);
-
-    return now >= (kickoff - 15 * 60 * 1000) && now <= (kickoff + maxDuration);
+    return now >= (kickoff - 15 * 60 * 1000) && now <= (kickoff + eventDurationMs(match.category));
   }
 
   return false;
@@ -1364,6 +1382,8 @@ module.exports = {
   handleCatalog,
   handleMeta,
   isMatchLive,
+  _eventDurationMs: eventDurationMs,
+  _LIVE_STATUS_GRACE_MS: LIVE_STATUS_GRACE_MS,
   _mapMatchToMetaPreview: mapMatchToMetaPreview,
   _scheduleOnlyFixtures: scheduleOnlyFixtures
 };
