@@ -280,6 +280,13 @@ const { redactUrl } = require('./redact');
 // The logs showed exactly that: "Successfully extracted" followed by "Dropped
 // timeout/error stream ... impit timeout 5000ms" for the same URL.
 const VERIFY_CONCURRENCY = Number(process.env.VERIFY_CONCURRENCY) || 6;
+// How long to wait before asking a second time. Long enough for a throttle
+// window or a load-balancer blip to pass, short enough that a mint is not held
+// up by a host that is simply down.
+const VERIFY_RETRY_DELAY_MS = Number(process.env.VERIFY_RETRY_DELAY_MS) || 300;
+// An answer about this moment rather than about the stream. A 404 or a 403 is
+// about the stream and is taken at its word the first time.
+const isTransientCheck = (status) => status === 408 || status === 429 || (status >= 500 && status <= 599);
 
 /** Run `job` over `items`, at most `limit` at a time, preserving order. */
 async function mapLimit(items, limit, job) {
@@ -328,8 +335,6 @@ async function verifyStreams(streams, cacheKey, m3u8Parser, resolveCache, opts =
     }
 
     try {
-      const abortController = new AbortController();
-      const timeout = setTimeout(() => abortController.abort(), 5000); // 5 second timeout to allow slow edge CDNs (wfty/strmd) to respond
 
       if (!referer && s.behaviorHints && s.behaviorHints.proxyHeaders && s.behaviorHints.proxyHeaders.request) {
         referer = s.behaviorHints.proxyHeaders.request.Referer || '';
@@ -347,29 +352,50 @@ async function verifyStreams(streams, cacheKey, m3u8Parser, resolveCache, opts =
       };
       if (origin) reqHeaders['Origin'] = origin;
 
-      try {
-        // _safeFetch handles impit -> undici fallback automatically on all platforms
-        // Only the head of the playlist is needed: a valid one starts #EXTM3U on
-        // its first line. A server that ignores Range sends the whole body, which
-        // is what happened before, so this can only help.
-        const result = await _safeFetch(targetUrl, {
-          method: 'GET',
-          headers: { ...reqHeaders, Range: 'bytes=0-2047' },
-          signal: abortController.signal,
-          timeoutMs: 5000,
-        });
-        res = { status: result.status };
-        bodySample = await result.text();
-      } catch (fetchErr) {
-        clearTimeout(timeout);
+      // Only the head of the playlist is needed: a valid one starts #EXTM3U on
+      // its first line. A server that ignores Range sends the whole body, which
+      // is what happened before, so this can only help.
+      const attempt = async () => {
+        const abortController = new AbortController();
+        const timer = setTimeout(() => abortController.abort(), 5000); // slow edge CDNs (wfty/strmd) need the room
+        try {
+          // _safeFetch handles impit -> undici fallback automatically on all platforms
+          const result = await _safeFetch(targetUrl, {
+            method: 'GET',
+            headers: { ...reqHeaders, Range: 'bytes=0-2047' },
+            signal: abortController.signal,
+            timeoutMs: 5000,
+          });
+          return { status: result.status, body: await result.text() };
+        } catch (err) {
+          return { error: err };
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      // A blip is not a verdict. The note under the status checks has said for
+      // as long as this function has existed that a throttle or a timeout
+      // "has said nothing about the stream itself" -- and the row was dropped
+      // all the same, which is a working stream lost to one bad moment. It is
+      // asked once more, and the second answer is the one that counts.
+      let outcome = await attempt();
+      if (outcome.error || isTransientCheck(outcome.status)) {
+        await new Promise(resolve => setTimeout(resolve, VERIFY_RETRY_DELAY_MS));
+        outcome = await attempt();
+        if (opts.report) opts.report.retried = (opts.report.retried || 0) + 1;
+      }
+
+      if (outcome.error) {
         if (opts.report) opts.report.errors++;
-        console.log(`[Filter] Dropped timeout/error stream: ${redactUrl(targetUrl)} - ${fetchErr.message}`);
+        console.log(`[Filter] Dropped timeout/error stream: ${redactUrl(targetUrl)} - ${outcome.error.message}`);
         if (cacheKey) resolveCache.noteFailure(cacheKey);
         noteOutcome(source, false);
         return null;
       }
 
-      clearTimeout(timeout);
+      res = { status: outcome.status };
+      bodySample = outcome.body || '';
 
       // Edge servers return 404 for dead streams, 403 for IP-locked/expired tokens, 502 for upstream failures
       if (res.status === 404 || res.status === 403 || res.status >= 500) {
@@ -1030,6 +1056,8 @@ module.exports = {
   _upstreamHost: upstreamHost,
   _spreadHosts: spreadHosts,
   _spreadRows: spreadRows,
+  _verifyStreams: verifyStreams,
+  _isTransientCheck: isTransientCheck,
   _sourceRank: sourceRank,
   _sortMode: sortMode,
   _mapLimit: mapLimit,
