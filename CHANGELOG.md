@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.5.1 (2026-09-20)
+
+Two reliability fixes. 🔴 Live Now was showing matches that had finished — four of the eight tiles at the top of it returned no streams at all, between 3.8 and 5.3 hours past kickoff, because a provider's "live" flag was believed forever and none of the six providers that set it ever takes it back. And a stream that answered once with a timeout or a 503 was dropped outright, even though the code already knew that answer said nothing about the stream. Both are now held to the evidence.
+
+### Bug Fixes
+
+* **catalog:** stop trusting a provider's "live" status forever — it is now held to the same per-sport clock every other path already used, plus a 45 minute grace window for stoppage, extra time and delayed kickoffs. Measured against the 60 tiles showing as LIVE at the time of writing, 51 stay and 9 go, all nine football between 3.3 and 5.3 hours past kickoff ([bf56fa2](https://github.com/mlp2069/aiosports/commit/bf56fa2))
+* **streams:** ask a second time before dropping a stream on a transient answer — a timeout, a dropped socket, 408, 429 or any 5xx is retried once after a short pause, so a source that blips no longer disappears from the list until the cache turns over. A 404 or a 403 is an answer about the stream and is still taken at its word ([cc9801b](https://github.com/mlp2069/aiosports/commit/cc9801b))
+
 ## v1.5.0 (2026-09-19)
 
 A stream that never really breaks but keeps catching itself is the source's playlist, not your connection. Measured here over two minutes: TotalSportek publishes a segment every 4.02s like a metronome, while WatchFooty and TimStreams list four segments — sixteen and thirteen seconds — and publish in bursts, eight seconds of nothing and then two at once, eleven times between them. A player starts three segments from the end of a live playlist, so it holds about twelve seconds of video; one of those pauses spends most of it and the next slow chunk is a stall. Extra Buffer, in `/configure` or `LIVE_BUFFER_SECONDS`, hands the player a deeper window of what the source has already published and tells it to start further back in it. Off by default, and off stays exactly as it was.
