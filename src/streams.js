@@ -311,7 +311,12 @@ async function verifyStreams(streams, cacheKey, m3u8Parser, resolveCache, opts =
 
   const checkedStreams = await mapLimit(streams, VERIFY_CONCURRENCY, (async (s) => {
     // We only pre-flight check direct streams (m3u8 urls). Web player links are kept blindly.
-    if (!s.url || s.url.includes('/watch?')) return s;
+    // A web player link is kept blindly, and so is a progressive .mp4: the
+    // check below reads the head of a playlist and rejects a body with no
+    // #EXT in it, which is every mp4 ever served. WatchFootyProvider mints
+    // those as direct streams (WatchFootyProvider.js:95), so without this
+    // exemption each one is dropped as a "fake 200" without being played.
+    if (!s.url || s.url.includes('/watch?') || s.url.includes('.mp4')) return s;
 
     // Which provider is answering for this row, for the tally.
     const source = tallySource(s, cacheKey, opts);
