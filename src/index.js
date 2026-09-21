@@ -992,6 +992,7 @@ app.get('/img/matchup', async (req, res) => {
 const { safeFetch: _safeFetch, getImpit: _getImpit } = require('./impitClient');
 const { assertPublicUrl, publicAgent } = require('./netGuard');
 const { verifyManifestQuery, verifySegmentQuery } = require('./manifestLink');
+const { rewriteInternalUrl } = require('./internalUrl');
 const { rewritePlaylist, absoluteEntry } = require('./playlistRewrite');
 const liveDelay = require('./liveDelay');
 const remint = require('./remint');
@@ -1637,20 +1638,12 @@ app.use((req, res, next) => {
         const body = JSON.parse(bodyString);
         let modified = false;
 
+        // Relative and absolute forms both, in one place, tested in
+        // tests/internal-url.test.js -- see src/internalUrl.js for why.
         const rewriteUrl = (url) => {
-          if (!url || typeof url !== 'string') return url;
-          // Relative URLs
-          if (url.startsWith('/img') || url.startsWith('/watch') || url.startsWith('/api/manifest') || url.startsWith('/logo')) {
-            modified = true;
-            return `${currentBaseUrl}${url}`;
-          }
-          // Absolute URLs with legacy/static base or localhost/LAN IP
-          const match = url.match(/^(?:https?:\/\/[^\/]+)(\/(?:img|watch|api\/manifest|logo)(?:[?\/].*)?)$/);
-          if (match) {
-            modified = true;
-            return `${currentBaseUrl}${match[1]}`;
-          }
-          return url;
+          const out = rewriteInternalUrl(url, currentBaseUrl);
+          if (out !== url) modified = true;
+          return out;
         };
 
         // 1. Streams payload (/stream/tv/*.json)
