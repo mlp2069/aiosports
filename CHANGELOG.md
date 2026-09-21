@@ -1,6 +1,14 @@
 # Changelog
 
-## v1.6.3 (2026-09-21)
+## v1.6.4 (2026-09-21)
+
+Fixes an outage in v1.6.3, which is withdrawn. Giving the proxy path a .m3u8 extension stopped the response rewriter from recognising it, and that rewriter is the only thing that puts a reachable address on a stream row: rows are minted with the server's own address on the front, which inside a container is the Docker bridge, and it is swapped for the host the request came in on as the response goes out. Once the pattern stopped matching, every proxied stream was handed to the player addressed 172.x.x.x, which nothing outside the container can open. Direct CDN rows carry the upstream's own address and were never rewritten, so they kept playing while everything proxied did not. Nothing was visible from the server, because the playlist answered 200 to anyone who could reach it and the player never could.
+
+### Bug Fixes
+
+* **server:** keep readdressing a proxy link after it gained an extension. The rewriter now treats /api/manifest and /api/manifest.m3u8 as one route and tolerates a future .mpd, and it moves out of the response middleware into its own module, because where it lived nothing could test it — the pattern that broke was the only untested branch in the path a viewer depends on ([e372750](https://github.com/mlp2069/aiosports/commit/e372750))
+
+## v1.6.3 (2026-09-21) — withdrawn, superseded by v1.6.4
 
 Every stream started twice. A player works out how to open a link by reading its path for an extension, and it cuts the query off before it looks -- so on a link of the form /api/manifest?url=<the real .m3u8>, the only extension present was in the part being discarded. Unable to tell, the player opened the playlist as if it were a video container, failed, probed the address to ask what it actually was, then threw itself away and started over. It always arrived, which is why this never looked like a fault, but it paid that whole round trip on every launch of every stream. Proxy links now carry a .m3u8 of their own and say the same thing twice more in the stream row, so a player knows what it is holding before it fetches a byte.
 
