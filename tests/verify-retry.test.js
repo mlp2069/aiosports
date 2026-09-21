@@ -86,6 +86,26 @@ const run = async (plan) => {
   r = await run([{ status: 500 }, { status: 502 }]);
   t({ kept: 0, attempts: 2 }, r, 'the second answer stands; there is no third attempt');
 
+  // ─── A name that does not resolve is not a blip ───────────────────────────
+  streams._deadHosts.clear();
+  r = await run([{ throw: 'getaddrinfo ENOTFOUND tvpass.org' }]);
+  t({ kept: 0, attempts: 1 }, r, 'a host that does not resolve is dropped without a retry');
+
+  // ...and it is not asked again at all.
+  const before = calls.length;
+  r = await run([]);   // no scripted fetch: any attempt would throw "more times than scripted"
+  t({ kept: 0, attempts: 0 }, r, 'the same host costs no network call the second time');
+
+  // A different host is unaffected by another one being written off.
+  streams._deadHosts.clear();
+  r = await run([{ status: 200 }]);
+  t({ kept: 1, attempts: 1 }, r, 'writing off one host does not touch the next');
+
+  t(true, streams._isUnresolvableError(new Error('getaddrinfo ENOTFOUND tvpass.org')), 'ENOTFOUND is unresolvable');
+  t(true, streams._isUnresolvableError(new Error('getaddrinfo EAI_NONAME x')), 'EAI_NONAME is unresolvable');
+  t(false, streams._isUnresolvableError(new Error('socket hang up')), 'a dropped socket is not');
+  t(false, streams._isUnresolvableError(new Error('impit timeout 5000ms')), 'a timeout is not');
+
   // ─── The classification itself ────────────────────────────────────────────
   t(true, isTransientCheck(500), '500 is transient');
   t(true, isTransientCheck(502), '502 is transient');

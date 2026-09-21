@@ -289,6 +289,36 @@ const VERIFY_RETRY_DELAY_MS = Number(process.env.VERIFY_RETRY_DELAY_MS) || 300;
 // about the stream and is taken at its word the first time.
 const isTransientCheck = (status) => status === 408 || status === 429 || (status >= 500 && status <= 599);
 
+// A name that does not resolve is not a blip. It is the same kind of answer as
+// a 404 -- definitive, and about the host rather than the moment -- so it is
+// neither retried nor asked again for a while. tvpass.org, which carries
+// Marquee in the iptv-org data, has been gone for days: it was 74 of 79 check
+// failures in four hours, each attempted twice because the retry above could
+// not tell a dead name from a slow one.
+const isUnresolvableError = (err) => /ENOTFOUND|EAI_NONAME/i.test(String(err && err.message));
+// How long a host stays written off: long enough to stop the sweeps, short
+// enough that a name which comes back is picked up the same day.
+const DEAD_HOST_TTL_MS = Number(process.env.DEAD_HOST_TTL_MS) || 6 * 60 * 60 * 1000;
+const deadHosts = new Map();   // hostname -> until
+function hostOfUrl(url) {
+  try { return new URL(url).hostname.toLowerCase(); } catch (err) { return ''; }
+}
+function isDeadHost(url) {
+  const h = hostOfUrl(url);
+  if (!h) return false;
+  const until = deadHosts.get(h);
+  if (!until) return false;
+  if (Date.now() > until) { deadHosts.delete(h); return false; }
+  return true;
+}
+function noteDeadHost(url) {
+  const h = hostOfUrl(url);
+  if (!h) return;
+  if (!deadHosts.has(h)) console.log(`[Filter] ${h} does not resolve; not asking again for ${Math.round(DEAD_HOST_TTL_MS / 3600000)}h`);
+  deadHosts.set(h, Date.now() + DEAD_HOST_TTL_MS);
+  if (deadHosts.size > 200) for (const [k, u] of deadHosts) if (Date.now() > u) deadHosts.delete(k);
+}
+
 /** Run `job` over `items`, at most `limit` at a time, preserving order. */
 async function mapLimit(items, limit, job) {
   const out = new Array(items.length);
@@ -340,6 +370,14 @@ async function verifyStreams(streams, cacheKey, m3u8Parser, resolveCache, opts =
       } catch (e) {}
     }
 
+    // A host that did not resolve a moment ago will not resolve now, and a
+    // sweep of several hundred channels is where that cost shows up.
+    if (isDeadHost(targetUrl)) {
+      if (cacheKey) resolveCache.noteFailure(cacheKey);
+      noteOutcome(source, false);
+      return null;
+    }
+
     try {
 
       if (!referer && s.behaviorHints && s.behaviorHints.proxyHeaders && s.behaviorHints.proxyHeaders.request) {
@@ -386,7 +424,9 @@ async function verifyStreams(streams, cacheKey, m3u8Parser, resolveCache, opts =
       // all the same, which is a working stream lost to one bad moment. It is
       // asked once more, and the second answer is the one that counts.
       let outcome = await attempt();
-      if (outcome.error || isTransientCheck(outcome.status)) {
+      if (outcome.error && isUnresolvableError(outcome.error)) {
+        noteDeadHost(targetUrl);
+      } else if (outcome.error || isTransientCheck(outcome.status)) {
         await new Promise(resolve => setTimeout(resolve, VERIFY_RETRY_DELAY_MS));
         outcome = await attempt();
         if (opts.report) opts.report.retried = (opts.report.retried || 0) + 1;
@@ -1108,6 +1148,8 @@ module.exports = {
   _spreadRows: spreadRows,
   _verifyStreams: verifyStreams,
   _isTransientCheck: isTransientCheck,
+  _isUnresolvableError: isUnresolvableError,
+  _deadHosts: deadHosts,
   _sourceRank: sourceRank,
   _sortMode: sortMode,
   _mapLimit: mapLimit,
