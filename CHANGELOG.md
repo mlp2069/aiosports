@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.6.2 (2026-09-21)
+
+Housekeeping the health check turned up. Of 79 stream-check failures in four hours, 74 were a single host — tvpass.org, which carries Marquee in the iptv-org data and has been gone for days — and each one was being attempted twice, because the retry added in v1.5.1 could not tell a dead name from a slow one. None of this ever reached a viewer; it was the background channel sweep spending time on a host that no longer exists.
+
+### Bug Fixes
+
+* **streams:** stop asking a host whose name does not resolve. ENOTFOUND is definitive in the way a 404 is, so it is no longer retried, and the host is written off for six hours — a stream on a host already written off is dropped without a network call at all. Written off by observation rather than by name, so the next host to disappear costs one failed lookup instead of a code change; timeouts and refused connections are still retried as before ([62df9eb](https://github.com/mlp2069/aiosports/commit/62df9eb))
+
 ## v1.6.1 (2026-09-21)
 
 Two small fixes found while reviewing what upstream had been doing. A club whose name carries a letter no Unicode normal form takes apart — the ø in Bodø/Glimt, the ł in Łódź — had that letter deleted rather than folded, so ⭐ Your Teams never matched it. And a stream served as a progressive .mp4 was being judged against the rules for a playlist, which no mp4 can pass, so those rows were dropped before anyone saw them.
