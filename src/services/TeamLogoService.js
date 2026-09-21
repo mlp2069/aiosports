@@ -171,12 +171,34 @@ const cache = new Map();
 // exactly when it was needed most. Each entry is a short key and a URL string.
 const CACHE_MAX = 20000;
 
+// normalize() as it behaved before it folded the undecomposable letters: they
+// were simply deleted by the [^a-z0-9] collapse. The bundled ESPN table was
+// generated that way, so this is what some of its keys still look like.
+function normalizeLegacy(s) {
+  if (!s || typeof s !== 'string') return '';
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[\u2018\u2019']/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 function normalize(s) {
   if (!s || typeof s !== 'string') return '';
   return s
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')   // strip accents
+    // Letters no normal form decomposes: NFD leaves these whole and the
+    // [^a-z0-9] collapse below then deletes them outright, so "Bodo/Glimt"
+    // typed by a viewer never met "Bodø/Glimt" from the feed -- it had become
+    // "bod glimt". Mapped to the spelling people actually type.
+    .replace(/ø/g, 'o').replace(/đ/g, 'd').replace(/ð/g, 'd')
+    .replace(/ł/g, 'l').replace(/ß/g, 'ss')
+    .replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/ı/g, 'i').replace(/þ/g, 'th')
     .replace(/&/g, ' and ')
     .replace(/[‘’']/g, '')   // possessives: "ragin' cajuns" -> "ragin cajuns"
     .replace(/[^a-z0-9]+/g, ' ')
@@ -220,6 +242,18 @@ function lookupTeam(side, category, leaguesOverride = null) {
   // them widen what counts as a match, so a near-miss still declines.
   let result = resolve(key, leagues);
   if (!result && ALIASES[key]) result = resolve(ALIASES[key], leagues);
+  // The bundled table predates normalize() folding the letters no normal form
+  // decomposes, and it is not consistent about them: ESPN's own spelling gives
+  // "bodo glimt" for Bodo/Glimt but "brndby" for Brondby, the slashed o simply
+  // deleted. Both are this club under the current folding, so a miss is tried
+  // again with the older spelling instead of rebuilding the table.
+  if (!result) {
+    const legacy = normalizeLegacy(side);
+    if (legacy && legacy !== key && legacy.length >= 2) {
+      result = resolve(legacy, leagues)
+            || (ALIASES[legacy] ? resolve(ALIASES[legacy], leagues) : null);
+    }
+  }
   if (!result) {
     const bare = stripAffix(key);
     if (bare && bare !== key && bare.length >= 4) result = resolve(bare, leagues);
@@ -441,5 +475,6 @@ module.exports = {
   lookupTeam,
   splitSides,
   normalize,
+  _normalizeLegacy: normalizeLegacy,
   CATEGORY_LEAGUES
 };
