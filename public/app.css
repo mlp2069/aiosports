@@ -1,0 +1,437 @@
+/*
+ * AIOSports — one visual system for /, /login, /dashboard and /configure.
+ *
+ * Every value here is a token or a documented one-off. If a page needs a
+ * number that is not in this file, that is a defect in this file, not a
+ * licence to hardcode.
+ *
+ * Dark only, and deliberately so. Elevation on a near-black canvas comes from
+ * LIGHTNESS, not shadow: a black shadow on #09090b is invisible. So surfaces
+ * step up a ramp and borders are white at low alpha -- a border darker than
+ * its surface reads as a crack, not an edge.
+ */
+
+:root {
+  /* Without this, a dark page grows white native selects, white scrollbars and
+     a white autofill flash on the login form. */
+  color-scheme: dark;
+
+  /* ---- Surface ramp -------------------------------------------------- */
+  /* Structural regions are darker and heavier; interactive surfaces are a
+     lighter wash. On dark that direction is inverted from the light-mode
+     recipe, where glass is a bright fill. */
+  --canvas:        #09090b;
+  --surface-sunk:  #0c0c0f;
+  --surface:       #121216;
+  --surface-raised:#17171c;
+  --surface-hover: #1c1c22;
+
+  /* ---- Lines --------------------------------------------------------- */
+  --line:          rgba(255, 255, 255, 0.07);
+  --line-strong:   rgba(255, 255, 255, 0.12);
+  --line-focus:    rgba(122, 167, 255, 0.55);
+
+  /* ---- Text ---------------------------------------------------------- */
+  /* Off-white on off-black. Pure #fff on pure #000 vibrates. */
+  --text:          #f4f4f5;
+  --text-dim:      #a1a1aa;
+  --text-faint:    #71717a;
+  /* Secondary text sitting ON a translucent surface needs more contrast and a
+     touch more weight than the same text on a solid one -- flat grey over
+     glass is the single most-violated rule in the old pages. */
+  --text-on-glass: #c8c8d0;
+
+  /* ---- Accent -------------------------------------------------------- */
+  /* #1668ff is ~4.2:1 on the canvas: fine as a FILL behind white text
+     (~4.7:1), below the line as text. So text and fill are separate tokens
+     and must not be swapped. */
+  --accent:        #1668ff;
+  --accent-hover:  #2b78ff;
+  --accent-press:  #0f57db;
+  --accent-text:   #8fb4ff;
+  --accent-wash:   rgba(22, 104, 255, 0.12);
+
+  /* ---- Status -------------------------------------------------------- */
+  /* Four kinds of feedback, one token set: status, completion, warning, error.
+     The accent is NOT the error colour -- the old pages used it as both. */
+  --ok:            #34d399;
+  --ok-wash:       rgba(52, 211, 153, 0.11);
+  --warn:          #fbbf24;
+  --warn-wash:     rgba(251, 191, 36, 0.11);
+  --danger:        #f87171;
+  --danger-hover:  #fca5a5;
+  --danger-wash:   rgba(248, 113, 113, 0.11);
+
+  /* ---- Type ---------------------------------------------------------- */
+  /* system-ui first: it ships optical sizing, tracking tables and legibility
+     tuning already. Outfit is kept for the wordmark alone, which is the only
+     thing that needs the brand's face. */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Outfit", var(--font);
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Size, leading and tracking travel together. Tracking is size-specific:
+     display wants negative, body ~0, small text slightly positive. A single
+     global letter-spacing is wrong somewhere by definition. */
+  --t-display:  700 2rem/1.1 var(--font-display);
+  --t-title:    700 1.375rem/1.2 var(--font);
+  --t-heading:  600 1rem/1.4 var(--font);
+  --t-body:     400 0.9375rem/1.55 var(--font);
+  --t-small:    400 0.8125rem/1.5 var(--font);
+  --t-caption:  500 0.75rem/1.45 var(--font);
+  --track-display: -0.02em;
+  --track-title:   -0.01em;
+  --track-body:     0;
+  --track-caption:  0.015em;
+
+  /* ---- Space --------------------------------------------------------- */
+  /* rem, so the layout scales with the reader's text size and survives being
+     opened on a TV browser at 125%. */
+  --s1: 0.25rem;  --s2: 0.5rem;   --s3: 0.75rem;  --s4: 1rem;
+  --s5: 1.5rem;   --s6: 2rem;     --s7: 3rem;     --s8: 4rem;
+
+  /* ---- Radii --------------------------------------------------------- */
+  --r-sm: 6px;  --r-md: 10px;  --r-lg: 14px;  --r-xl: 20px;  --r-full: 999px;
+
+  /* ---- Shadow -------------------------------------------------------- */
+  /* Mapped to surface size, not an invented elevation ladder. Bigger surfaces
+     read as thicker. Shadow is a supporting cue here; the ramp does the work. */
+  --shadow-chip:    0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-modal:   0 24px 60px rgba(0, 0, 0, 0.65);
+
+  /* ---- Motion -------------------------------------------------------- */
+  /* Built-in CSS easings are too weak. Enter/exit gets a strong ease-out;
+     on-screen movement gets ease-in-out. ease-in is never used on UI: it
+     delays the first movement, which is the moment being watched. */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --d-press:  140ms;   /* button press feedback   */
+  --d-hover:  160ms;   /* colour / border changes */
+  --d-pop:    180ms;   /* tooltips, small popovers*/
+  --d-panel:  220ms;   /* dropdowns, accordions   */
+  --d-modal:  260ms;   /* dialogs                 */
+
+  --measure: 68ch;     /* readable line length */
+}
+
+/* Surfaces go opaque and blur is dropped. This is independent of reduced
+   motion -- a reader can want one and not the other. */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --text-on-glass: var(--text-dim); }
+  .glass { backdrop-filter: none !important; background: var(--surface) !important; }
+}
+
+/* Near-solid backgrounds with a defined contrasting border. */
+@media (prefers-contrast: more) {
+  :root {
+    --line: rgba(255, 255, 255, 0.24);
+    --line-strong: rgba(255, 255, 255, 0.38);
+    --text-dim: #d4d4d8;
+    --text-faint: #a1a1aa;
+  }
+}
+
+/* Reduced motion means fewer and gentler, not none: opacity and colour still
+   carry meaning, movement does not. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ====================================================================== */
+/* Reset                                                                   */
+/* ====================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--text);
+  font: var(--t-body);
+  letter-spacing: var(--track-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+[hidden] { display: none !important; }
+
+h1, h2, h3, h4 { margin: 0; }
+h1 { font: var(--t-display); letter-spacing: var(--track-display); }
+h2 { font: var(--t-title);   letter-spacing: var(--track-title); }
+/* On a dense settings page hierarchy comes from weight, not size: a heading
+   at near-body size with more weight has presence without eating space. */
+h3 { font: var(--t-heading); letter-spacing: var(--track-body); }
+
+p { margin: 0 0 var(--s3); max-width: var(--measure); }
+a { color: var(--accent-text); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* Every count, score, duration and tally. Digits must not shift width as they
+   change, or a live number jitters its own layout. */
+.num, .stat-value, time, output { font-variant-numeric: tabular-nums; }
+
+/* ---- Focus ----------------------------------------------------------- */
+/* One ring, on everything, always visible. The old pages deleted outlines and
+   replaced them with a border colour change of almost no contrast. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--line-focus);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+:where(a, button, input, select, textarea):focus:not(:focus-visible) { outline: none; }
+
+/* ====================================================================== */
+/* Layout                                                                  */
+/* ====================================================================== */
+
+.page { max-width: 62rem; margin: 0 auto; padding: var(--s5) var(--s4) var(--s8); }
+.page--narrow { max-width: 34rem; }
+.stack > * + * { margin-top: var(--s4); }
+.stack-lg > * + * { margin-top: var(--s6); }
+.row { display: flex; align-items: center; gap: var(--s3); }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.spacer { flex: 1; }
+
+/* Chrome and content share one grid. In the old dashboard the header was
+   full-bleed while main was max-width, so nothing lined up. */
+.appbar {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--canvas) 82%, transparent);
+  backdrop-filter: blur(16px);
+}
+.appbar__inner { max-width: 62rem; margin: 0 auto; padding: var(--s3) var(--s4); display: flex; align-items: center; gap: var(--s4); }
+
+/* A fading mask where content meets floating chrome, instead of a hard 1px
+   divider. Only where the chrome actually overlaps content. */
+.appbar::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 24px;
+  background: linear-gradient(var(--canvas), transparent);
+  pointer-events: none;
+}
+
+.wordmark { font: 700 1.0625rem/1 var(--font-display); letter-spacing: -0.01em; color: var(--text); text-decoration: none; }
+
+/* ====================================================================== */
+/* Surfaces                                                                */
+/* ====================================================================== */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+}
+.card--sunk { background: var(--surface-sunk); }
+.card--raised { background: var(--surface-raised); box-shadow: var(--shadow-popover); }
+
+/* One glass layer per stack. Translucent chrome OR a translucent card, never
+   a translucent card inside translucent chrome -- stacked blurs turn to mud. */
+.glass {
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line-strong);
+}
+.glass .muted, .glass .hint { color: var(--text-on-glass); font-weight: 500; }
+
+.section { border-top: 1px solid var(--line); padding-top: var(--s5); }
+.section__head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s4); }
+.section__hint { font: var(--t-small); color: var(--text-dim); }
+
+.muted { color: var(--text-dim); }
+.hint { font: var(--t-small); color: var(--text-dim); max-width: var(--measure); }
+.caption { font: var(--t-caption); letter-spacing: var(--track-caption); color: var(--text-faint); text-transform: uppercase; }
+.mono { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-faint); }
+
+/* ====================================================================== */
+/* Controls                                                                */
+/* ====================================================================== */
+
+/* Press feedback fires on pointer-down via :active, not on the click handler,
+   so the interface answers before the action completes. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+  padding: 0.6875rem var(--s5);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: 600 0.9375rem/1 var(--font);
+  cursor: pointer;
+  /* Named properties only. `transition: all` also animates layout properties
+     you never meant to animate, and paints on every unrelated change. */
+  transition: background var(--d-hover) ease,
+              border-color var(--d-hover) ease,
+              color var(--d-hover) ease,
+              transform var(--d-press) var(--ease-out);
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.btn--primary { background: var(--accent); color: #fff; }
+.btn--primary:active { background: var(--accent-press); }
+.btn--secondary { background: transparent; border-color: var(--line-strong); }
+.btn--danger { background: transparent; border-color: var(--line-strong); color: var(--danger); }
+.btn--ghost { background: transparent; color: var(--text-dim); }
+.btn--block { width: 100%; }
+.btn--lg { padding: 0.875rem var(--s6); font-size: 1rem; }
+
+/* Touch devices fire :hover on tap and it sticks there. Gate every hover. */
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled) { background: var(--surface-hover); }
+  .btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn--secondary:hover:not(:disabled) { border-color: var(--text-faint); background: rgba(255,255,255,0.03); }
+  .btn--danger:hover:not(:disabled) { background: var(--danger-wash); border-color: var(--danger); color: var(--danger-hover); }
+  .btn--ghost:hover:not(:disabled) { background: rgba(255,255,255,0.05); color: var(--text); }
+}
+
+.icon-btn {
+  display: inline-grid; place-items: center;
+  width: 2rem; height: 2rem; padding: 0;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: transparent; color: var(--text-dim); cursor: pointer;
+  transition: background var(--d-hover) ease, color var(--d-hover) ease, transform var(--d-press) var(--ease-out);
+}
+.icon-btn:active { transform: scale(0.94); }
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+}
+
+input[type="text"], input[type="password"], input[type="search"], textarea, select {
+  width: 100%;
+  padding: 0.6875rem var(--s3);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font: var(--t-body);
+  transition: border-color var(--d-hover) ease, background var(--d-hover) ease;
+}
+input::placeholder, textarea::placeholder { color: var(--text-faint); }
+input:focus-visible, textarea:focus-visible, select:focus-visible { border-color: var(--line-focus); }
+
+.field { display: block; }
+.field__label { display: block; font: var(--t-caption); letter-spacing: var(--track-caption); color: var(--text-dim); text-transform: uppercase; margin-bottom: var(--s2); }
+.field__hint { display: block; margin-top: var(--s2); font: var(--t-small); color: var(--text-faint); }
+
+/* Segmented control: the label sits beside what it changes, and the options
+   read as one control rather than a row of loose chips. */
+.segmented { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: var(--r-md); }
+.segmented__option {
+  padding: 0.4375rem var(--s3); border: 0; border-radius: 7px;
+  background: transparent; color: var(--text-dim);
+  font: 500 0.875rem/1 var(--font); cursor: pointer; white-space: nowrap;
+  transition: background var(--d-hover) ease, color var(--d-hover) ease, transform var(--d-press) var(--ease-out);
+}
+.segmented__option:active { transform: scale(0.97); }
+.segmented__option[aria-pressed="true"], .segmented__option.active { background: var(--surface-hover); color: var(--text); box-shadow: var(--shadow-chip); }
+@media (hover: hover) and (pointer: fine) {
+  .segmented__option:hover:not(.active):not([aria-pressed="true"]) { color: var(--text); }
+}
+
+.chip {
+  display: inline-flex; align-items: center; gap: var(--s1);
+  padding: 0.3125rem var(--s3);
+  border: 1px solid var(--line-strong); border-radius: var(--r-full);
+  background: transparent; color: var(--text-dim);
+  font: var(--t-caption); cursor: pointer;
+  transition: background var(--d-hover) ease, color var(--d-hover) ease, border-color var(--d-hover) ease, transform var(--d-press) var(--ease-out);
+}
+.chip:active { transform: scale(0.96); }
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover { color: var(--text); border-color: var(--text-faint); }
+}
+
+/* Selectable tile. The whole card is the target, not just the checkbox. */
+.tile {
+  position: relative; display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  cursor: pointer; user-select: none;
+  transition: background var(--d-hover) ease, border-color var(--d-hover) ease, transform var(--d-press) var(--ease-out);
+}
+.tile:active { transform: scale(0.985); }
+.tile:has(input:checked) { background: var(--accent-wash); border-color: rgba(22,104,255,0.45); }
+.tile:has(input:focus-visible) { outline: 2px solid var(--line-focus); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover { border-color: var(--line-strong); }
+}
+
+/* ====================================================================== */
+/* Feedback — status, completion, warning, error, from one set of tokens   */
+/* ====================================================================== */
+
+.callout {
+  display: flex; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line-strong); border-left-width: 3px;
+  border-radius: var(--r-md);
+  font: var(--t-small);
+  background: var(--surface-raised);
+}
+.callout--ok     { border-left-color: var(--ok);     background: var(--ok-wash); }
+.callout--warn   { border-left-color: var(--warn);   background: var(--warn-wash); }
+.callout--error  { border-left-color: var(--danger); background: var(--danger-wash); }
+.callout--info   { border-left-color: var(--accent); background: var(--accent-wash); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: var(--s1);
+  padding: 0.1875rem var(--s2); border-radius: var(--r-full);
+  font: var(--t-caption); letter-spacing: var(--track-caption);
+  /* Colour sits on a near-opaque fill, never as a tint floating on glass,
+     where a blur underneath desaturates it. */
+  background: var(--surface-raised); color: var(--text-dim);
+}
+.badge--ok    { background: var(--ok-wash);     color: var(--ok); }
+.badge--warn  { background: var(--warn-wash);   color: var(--warn); }
+.badge--error { background: var(--danger-wash); color: var(--danger); }
+
+/* ====================================================================== */
+/* Motion                                                                  */
+/* ====================================================================== */
+
+/* Nothing in the real world appears from nothing, so entries start from a
+   visible scale, never scale(0). */
+.pop-in { animation: pop-in var(--d-panel) var(--ease-out) both; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.96) translateY(4px); } }
+
+/* Origin-aware: a popover scales from its trigger. A modal is exempt, because
+   it is not anchored to one -- it stays centred. */
+.popover { transform-origin: var(--transform-origin, top center); }
+
+dialog {
+  padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-xl);
+  background: var(--surface-raised); color: var(--text);
+  box-shadow: var(--shadow-modal);
+  transform-origin: center;
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(3px); }
+dialog[open] { animation: dialog-in var(--d-modal) var(--ease-out) both; }
+@keyframes dialog-in { from { opacity: 0; transform: scale(0.97); } }
+
+/* Stagger is decorative and must never gate interaction. Short delays only --
+   long ones read as the page being slow. */
+.stagger > * { animation: rise var(--d-panel) var(--ease-out) both; }
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(n+5) { animation-delay: 160ms; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (max-width: 40rem) {
+  .page { padding: var(--s4) var(--s3) var(--s7); }
+  .card { padding: var(--s4); border-radius: var(--r-md); }
+  :root { --t-display: 700 1.625rem/1.15 var(--font-display); }
+}

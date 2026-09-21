@@ -6,133 +6,359 @@
   <title>AIOSports</title>
   <link rel="icon" type="image/png" href="/logo-v2.png">
   <link rel="apple-touch-icon" href="/logo-v2.png">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+
+  <!-- One family, one weight: Outfit is the wordmark's face and nothing else.
+       Body type is system-ui via app.css, so nothing on the critical path waits
+       for a webfont. preconnect removes the DNS+TLS hop the old page paid. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&display=swap">
+
+  <link rel="stylesheet" href="/app.css">
+
   <style>
+    /* ------------------------------------------------------------------ *
+     * Page-local: the catalog grid and the in-browser preview player.
+     * Colour, type, space, radii, shadow, motion, buttons, inputs and the
+     * focus ring all come from app.css. Nothing here restates a token.
+     *
+     * The values below are NOT design values and app.css has no answer for
+     * them (reported upward): a z-index ladder, an artwork blur radius, the
+     * grid's minimum column, the video's maximum width, the spinner period.
+     * They live here, named and commented, instead of scattered as literals.
+     * ------------------------------------------------------------------ */
     :root {
-      --bg: #09090b;
-      --card-bg: rgba(28, 28, 30, 0.4);
-      --card-border: rgba(255, 255, 255, 0.05);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --accent: #1668ff;
-      --accent-glow: rgba(22, 104, 255, 0.32);
-      --glass: rgba(15, 15, 17, 0.7);
+      --z-art:        1;   /* poster above the blurred backdrop            */
+      --z-art-over:   2;   /* logo chip, LIVE chip, title block            */
+      --z-player:   100;   /* the player owns the viewport, above .appbar  */
+      --z-player-ui:101;   /* close button, source picker, skip link       */
+
+      --art-blur: 20px;    /* matches app.css .glass; no blur token exists */
+      --grid-col: 17rem;   /* smallest readable card column                */
+      --video-max: 76rem;  /* the video stops growing before the room does */
+      --spin: 1s;          /* a spinner period; app.css tops out at 260ms  */
     }
-    * { box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; }
-    header { position: sticky; top: 0; z-index: 50; background: var(--glass); backdrop-filter: blur(16px); padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); flex-wrap: wrap; gap: 15px; }
-    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .brand { display: flex; align-items: center; gap: 12px; font-family: 'Outfit', sans-serif; font-size: 1.8rem; font-weight: 900; }
-    .brand span { background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .brand img { width: 42px; height: 42px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 12px rgba(22, 104, 255, 0.3); }
-    /* Up here rather than beside the tabs, where it took 200px off a row that
-       already scrolls -- the last tab sat underneath it and looked cut off. The
-       tab strip now gets the full width and this gets the space the header has
-       going spare. */
-    .header-search {
-      flex: 1 1 180px; min-width: 140px; max-width: 420px;
-      padding: 10px 18px; border-radius: 30px; font-family: 'Inter', sans-serif;
-      font-size: 14px; background: rgba(255,255,255,0.05);
-      border: 1px solid var(--card-border); color: #fff; outline: none;
-      transition: border-color 0.2s, background 0.2s;
+
+    /* ---- Chrome ------------------------------------------------------ */
+
+    /* app.css .btn/.icon-btn set colour but not decoration, so an anchor
+       styled as a button keeps the underline from the base `a` rule. */
+    .header-actions a { text-decoration: none; }
+
+    .skip-link {
+      position: fixed; top: var(--s3); left: var(--s3); z-index: var(--z-player-ui);
+      padding: var(--s2) var(--s3);
+      background: var(--surface-raised); border: 1px solid var(--line-strong);
+      border-radius: var(--r-md); color: var(--text); text-decoration: none;
+      transform: translateY(-300%);
     }
-    .header-search::placeholder { color: var(--text-muted); }
-    .header-search:focus { border-color: var(--accent); background: rgba(255,255,255,0.08); }
-    main { padding: 40px; max-width: 1600px; margin: 0 auto; }
-    @media (max-width: 768px) {
-      header { padding: 15px 20px; flex-direction: column; align-items: flex-start; }
-      main { padding: 20px; }
-      /* Stacked header: the search gets its own full-width line rather than a
-         420px cap that would leave it stranded against the left edge. */
-      .header-search { width: 100%; max-width: none; flex: none; order: 3; }
-      .header-actions { width: 100%; }
-      .header-actions a { flex: 1; justify-content: center; text-align: center; }
+    .skip-link:focus { transform: none; }
+
+    .appbar__inner { flex-wrap: wrap; }
+
+    .brand { display: flex; align-items: center; gap: var(--s2); }
+    .brand__mark {
+      width: 2rem; height: 2rem; border-radius: var(--r-sm);
+      object-fit: cover; border: 1px solid var(--line-strong);
     }
-    
-    .tabs { display: flex; gap: 15px; margin-bottom: 30px; overflow-x: auto; padding-bottom: 10px; }
-    .tab { padding: 10px 20px; border-radius: 30px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: var(--text-muted); cursor: pointer; font-weight: 600; transition: all 0.2s; white-space: nowrap; }
-    .tab:hover { background: rgba(255,255,255,0.1); color: white; }
-    .tab.active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 4px 15px var(--accent-glow); }
-    
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; }
-    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; overflow: hidden; cursor: pointer; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
-    .card:hover { transform: translateY(-8px) scale(1.02); border-color: var(--accent); box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 20px var(--accent-glow); z-index: 10; }
-    .poster-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #111; overflow: hidden; }
-    .background { width: 100%; height: 100%; object-fit: cover; filter: blur(20px) brightness(0.5); transform: scale(1.2); transition: all 0.4s; }
-    .card:hover .background { filter: blur(15px) brightness(0.7); transform: scale(1.1); }
-    .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 1; padding: 10px; transition: transform 0.4s; }
-    .card:hover .poster { transform: scale(1.05); }
-    .logo { position: absolute; top: 15px; left: 15px; width: 48px; height: 48px; z-index: 3; border-radius: 12px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); object-fit: contain; padding: 6px; border: 1px solid rgba(255,255,255,0.1); }
-    .live-badge { position: absolute; top: 15px; right: 15px; z-index: 3; background: var(--accent); color: white; font-size: 0.75rem; font-weight: 800; padding: 4px 10px; border-radius: 20px; animation: pulse 2s infinite; }
-    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(22, 104, 255, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(22, 104, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 104, 255, 0); } }
-    .info { position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 20px 20px 20px; z-index: 3; background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 60%, transparent 100%); transition: all 0.4s; }
-    .card:hover .info { padding-bottom: 25px; }
-    .title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.25rem; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
-    .desc { font-size: 0.85rem; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; }
-    
-    #player-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(20px); z-index: 100; flex-direction: column; }
-    #close-btn { position: absolute; top: 30px; right: 40px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px 24px; border-radius: 30px; cursor: pointer; z-index: 101; font-weight: 600; }
-    #video-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
-    video { width: 100%; max-width: 1400px; max-height: 85vh; border-radius: 16px; background: #000; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
-    
-    #source-selector { display: none; position: absolute; z-index: 102; background: rgba(20,20,20,0.9); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); flex-direction: column; gap: 10px; }
-    .source-btn { background: rgba(255,255,255,0.1); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
-    .source-btn:hover { background: var(--accent); }
-    
-    .loader { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 15px; }
-    .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+    /* A gradient wordmark that still renders if background-clip:text is not
+       understood -- the old page left it transparent, i.e. invisible. */
+    .brand__name { color: var(--text); }
+    @supports ((background-clip: text) or (-webkit-background-clip: text)) {
+      .brand__name {
+        background-image: linear-gradient(to right, var(--text), var(--text-dim));
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+      }
+    }
+
+    .header-search { flex: 1 1 10rem; min-width: 0; max-width: 24rem; border-radius: var(--r-full); }
+    .header-actions { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+
+    /* JS reveals this with the literal 'inline-flex', so the centring must
+       live in CSS and the resting state must be display:none -- never the
+       [hidden] attribute, which app.css marks !important. */
+    #signOutBtn { display: none; align-items: center; justify-content: center; }
+
+    /* One designed intermediate state instead of three ragged wrap lines:
+       the two link pills shed their labels before anything wraps. */
+    @media (max-width: 64rem) {
+      .btn__label { display: none; }
+      .header-actions .btn { padding-inline: var(--s3); }
+    }
+    @media (max-width: 40rem) {
+      .header-search { order: 3; flex-basis: 100%; max-width: none; }
+      .header-actions { margin-left: auto; }
+    }
+
+    /* ---- Catalog strip ----------------------------------------------- */
+
+    .tabs {
+      display: flex; gap: var(--s2);
+      overflow-x: auto; padding-bottom: var(--s2);
+      scroll-snap-type: x proximity; scroll-padding-inline: var(--s4);
+      scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+    }
+    .tabs::-webkit-scrollbar { height: 6px; }
+    .tabs::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--r-full); }
+    .tabs::-webkit-scrollbar-track { background: transparent; }
+
+    .tab {
+      flex: none; scroll-snap-align: start;
+      padding: var(--s2) var(--s4);
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--r-full); color: var(--text-dim);
+      font: var(--t-small); font-weight: 600; white-space: nowrap; cursor: pointer;
+      transition: background var(--d-hover) ease,
+                  color var(--d-hover) ease,
+                  border-color var(--d-hover) ease,
+                  transform var(--d-press) var(--ease-out);
+    }
+    .tab:active { transform: scale(0.97); }
+    .tab.active { background: var(--accent); border-color: transparent; color: var(--text); }
+    @media (hover: hover) and (pointer: fine) {
+      .tab:hover:not(.active) { background: var(--surface-hover); color: var(--text); border-color: var(--line-strong); }
+    }
+
+    /* ---- Status ------------------------------------------------------ */
+
+    .page-alert:not(:empty) { margin-bottom: var(--s4); }
+    .page-alert .icon-btn { margin-left: auto; }
+    .callout .btn { margin-left: auto; flex: none; align-self: center; }
+    .status { margin: 0; font: var(--t-small); color: var(--text-dim); }
+    .grid-status { grid-column: 1 / -1; }
+
+    /* ---- Card grid --------------------------------------------------- */
+
+    .grid {
+      display: grid; gap: var(--s4);
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--grid-col)), 1fr));
+    }
+
+    /* app.css .card is a padded surface; JS hardcodes this class name on a
+       media tile, so the tile overrides the padding here. */
+    .card {
+      position: relative; padding: 0; overflow: hidden; cursor: pointer;
+      background: var(--surface-sunk);
+      transition: border-color var(--d-hover) ease,
+                  transform var(--d-press) var(--ease-out);
+    }
+    .card:active { transform: scale(0.99); }
+    @media (hover: hover) and (pointer: fine) {
+      .card:hover { border-color: var(--line-strong); }
+      .card:hover .poster { transform: scale(1.03); }
+    }
+
+    .poster-container {
+      position: relative; width: 100%; aspect-ratio: 16 / 9;
+      background: var(--canvas); overflow: hidden;
+    }
+    .background {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; filter: blur(var(--art-blur)) brightness(0.45);
+      transform: scale(1.15);
+    }
+    .poster {
+      position: absolute; inset: 0; z-index: var(--z-art);
+      width: 100%; height: 100%; object-fit: contain; padding: var(--s3);
+      transition: transform var(--d-hover) var(--ease-out);
+    }
+    .logo {
+      position: absolute; top: var(--s3); left: var(--s3); z-index: var(--z-art-over);
+      width: 2.5rem; height: 2.5rem; padding: var(--s1);
+      object-fit: contain; border-radius: var(--r-md);
+      background: color-mix(in srgb, var(--canvas) 70%, transparent);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--line-strong);
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      .logo { background: var(--canvas); }
+    }
+
+    /* Liveness is an error-adjacent state, not the accent. No infinite pulse:
+       one badge per live card, times a full grid, is motion nobody asked for. */
+    .live-badge {
+      position: absolute; top: var(--s3); right: var(--s3); z-index: var(--z-art-over);
+      display: inline-flex; align-items: center; gap: var(--s1);
+      padding: 0.1875rem var(--s2); border-radius: var(--r-full);
+      background: var(--surface-raised); color: var(--danger);
+      font: var(--t-caption); letter-spacing: var(--track-caption);
+      box-shadow: var(--shadow-chip);
+    }
+    .live-badge::before {
+      content: ""; width: 0.375rem; height: 0.375rem;
+      border-radius: var(--r-full); background: var(--danger);
+    }
+
+    /* The scrim is opaque where the text is, not only at the very bottom
+       edge -- the second line used to sit on ~70% black over arbitrary art. */
+    .info {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: var(--z-art-over);
+      padding: var(--s6) var(--s3) var(--s3);
+      background: linear-gradient(to top,
+        var(--canvas) 0%,
+        color-mix(in srgb, var(--canvas) 88%, transparent) 45%,
+        transparent 100%);
+    }
+    .title {
+      margin-bottom: var(--s1);
+      font: var(--t-heading); letter-spacing: var(--track-body); color: var(--text);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .desc {
+      font: var(--t-small); font-weight: 500; color: var(--text-on-glass);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+
+    /* ---- Player ------------------------------------------------------ */
+
+    /* display:none and flex-direction are load-bearing: JS restores the
+       literal 'flex'. */
+    #player-overlay {
+      display: none; flex-direction: column;
+      position: fixed; inset: 0; z-index: var(--z-player);
+      background: color-mix(in srgb, var(--canvas) 92%, transparent);
+      backdrop-filter: blur(var(--art-blur));
+      animation: player-in var(--d-modal) var(--ease-out) both;
+    }
+    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+      #player-overlay { background: var(--canvas); }
+    }
+    @keyframes player-in { from { opacity: 0; } }
+
+    /* The only visible exit, sitting on near-black: it needs a defined edge,
+       not just a fill one step off the canvas. */
+    #close-btn {
+      position: absolute; z-index: var(--z-player-ui);
+      top: max(var(--s3), env(safe-area-inset-top));
+      right: max(var(--s3), env(safe-area-inset-right));
+      border-color: var(--line-strong);
+    }
+
+    /* The positioning context for .loader and #source-selector. The top
+       padding is what keeps the close button off the video in landscape. */
+    #video-container {
+      position: relative; flex: 1; min-height: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: var(--s8) var(--s4) var(--s5);
+    }
+    #video {
+      width: 100%; max-width: var(--video-max); max-height: 100%;
+      object-fit: contain; background: var(--canvas);
+      border-radius: var(--r-lg);
+    }
+
+    /* Its own scrim, and actually centred: the old rule was position:absolute
+       with no offsets, so it landed in the container's top-left corner. */
+    #source-selector {
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      position: absolute; inset: 0; z-index: var(--z-player-ui); padding: var(--s4);
+      background: color-mix(in srgb, var(--canvas) 80%, transparent);
+    }
+    .source-panel {
+      width: 100%; max-width: 26rem; max-height: 100%; overflow-y: auto;
+      padding: var(--s5); border-radius: var(--r-xl);
+      background: var(--surface-raised); border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow-modal);
+    }
+    .source-panel__title { font: var(--t-heading); letter-spacing: var(--track-body); }
+    #source-buttons { display: flex; flex-direction: column; gap: var(--s2); }
+    .source-btn {
+      display: flex; align-items: center; width: 100%; text-align: left;
+      padding: 0.6875rem var(--s4);
+      background: var(--surface); border: 1px solid var(--line-strong);
+      border-radius: var(--r-md); color: var(--text);
+      font: var(--t-body); font-weight: 600; cursor: pointer;
+      transition: background var(--d-hover) ease,
+                  border-color var(--d-hover) ease,
+                  transform var(--d-press) var(--ease-out);
+    }
+    .source-btn:active { transform: scale(0.98); }
+    @media (hover: hover) and (pointer: fine) {
+      .source-btn:hover { background: var(--surface-hover); border-color: var(--text-faint); }
+    }
+
+    /* JS toggles display between the literals 'flex' and 'none', so flex is
+       the resting value. inset:0 centres it without relying on the flex
+       static-position rule. */
+    .loader {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: var(--s3); position: absolute; inset: 0; z-index: var(--z-art);
+      pointer-events: none; font: var(--t-small); color: var(--text-dim);
+    }
+    .spinner {
+      width: 2.5rem; height: 2.5rem; border-radius: var(--r-full);
+      border: 3px solid var(--line-strong); border-top-color: var(--accent-text);
+      animation: spin var(--spin) linear infinite;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
+
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.7.3/dist/hls.min.js" integrity="sha384-cciJ0zi8d1uMKC2zJd7jvPY4HQt7W4ByUI/FlMkltvBi31aW61rcpVBhpmW8/NwX" crossorigin="anonymous"></script>
 </head>
 <body>
 
-  <header>
-    <div class="brand">
-      <img src="/logo-v2.png" alt="AIOSports">
-      <span>AIOSports</span>
-    </div>
-    <input type="text" id="searchInput" class="header-search" placeholder="Search matches…" aria-label="Search matches">
-    <div class="header-actions">
-      <a href="https://ko-fi.com/mlp20" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 94, 91, 0.15); border: 1px solid rgba(255, 94, 91, 0.3); color: #FF5E5B; padding: 8px 16px; border-radius: 30px; text-decoration: none; font-weight: 700; font-size: 13px; transition: all 0.2s;">
-        <svg height="14" viewBox="0 0 24 24" width="14" fill="currentColor"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.966-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.966 1.909.822 1.838 3.197.723 4.314z"/></svg>
-        Tip on Ko-fi
-      </a>
-      <a href="https://github.com/mlp2069/aiosports" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; padding: 8px 16px; border-radius: 30px; text-decoration: none; font-weight: 700; font-size: 13px; transition: all 0.2s;">
-        <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
-        GitHub
-      </a>
-      <button type="button" id="signOutBtn" title="Sign out of this browser" aria-label="Sign out" style="display: none; align-items: center; justify-content: center; width: 38px; height: 38px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; border-radius: 50%; cursor: pointer; padding: 0;">
-        <svg height="17" width="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-      </button>
-      <a href="/dashboard" title="Dashboard — caches, warming and health" aria-label="Dashboard" style="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; border-radius: 50%; text-decoration: none; transition: all 0.2s;">
-        <svg height="17" width="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-      </a>
-      <a href="/configure" style="background: var(--accent); color: white; padding: 10px 20px; border-radius: 30px; text-decoration: none; font-weight: 700; font-family: 'Outfit', sans-serif; transition: all 0.2s; box-shadow: 0 4px 15px var(--accent-glow);">Configure Addon</a>
+  <a class="skip-link" href="#main">Skip to matches</a>
+
+  <header class="appbar">
+    <div class="appbar__inner">
+      <h1 class="brand wordmark">
+        <img class="brand__mark" src="/logo-v2.png" alt="">
+        <span class="brand__name">AIOSports</span>
+      </h1>
+
+      <label class="sr-only" for="searchInput">Search matches</label>
+      <input type="search" id="searchInput" class="header-search" placeholder="Search matches…">
+
+      <div class="header-actions">
+        <a class="btn btn--secondary" href="https://ko-fi.com/mlp20" target="_blank" rel="noopener noreferrer" aria-label="Tip on Ko-fi">
+          <svg height="14" viewBox="0 0 24 24" width="14" fill="currentColor" aria-hidden="true" focusable="false"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.966-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.966 1.909.822 1.838 3.197.723 4.314z"/></svg>
+          <span class="btn__label">Tip on Ko-fi</span>
+        </a>
+        <a class="btn btn--secondary" href="https://github.com/mlp2069/aiosports" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+          <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+          <span class="btn__label">GitHub</span>
+        </a>
+        <button type="button" id="signOutBtn" class="icon-btn" title="Sign out of this browser" aria-label="Sign out">
+          <svg height="17" width="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
+        <a class="icon-btn" href="/dashboard" title="Dashboard — caches, warming and health" aria-label="Dashboard">
+          <svg height="17" width="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </a>
+        <a class="btn btn--primary" href="/configure">Configure Addon</a>
+      </div>
     </div>
   </header>
 
-  <main>
-    <div class="tabs" id="tabs">
-      <div style="color:var(--text-muted);">Loading catalogs...</div>
+  <main class="page" id="main" tabindex="-1">
+    <div id="page-alert" class="page-alert" role="alert" aria-live="assertive"></div>
+
+    <h2 class="sr-only">Catalogs</h2>
+    <div class="tabs" id="tabs" role="group" aria-label="Catalogs">
+      <p class="status">Loading catalogs…</p>
     </div>
+
+    <h2 class="sr-only">Matches</h2>
     <div class="grid" id="grid"></div>
   </main>
 
-  <div id="player-overlay">
-    <button id="close-btn" onclick="closePlayer()">Close Player</button>
-    
-    <div id="source-selector">
-      <h3 style="margin-top:0; color:white; font-family:'Outfit',sans-serif;">Select Stream Source</h3>
-      <div id="source-buttons" style="display:flex; flex-direction:column; gap:10px;"></div>
-    </div>
+  <div id="player-overlay" role="dialog" aria-modal="true" aria-label="Stream player">
+    <button id="close-btn" class="btn" onclick="closePlayer()">Close Player</button>
 
     <div id="video-container">
       <div class="loader" id="loader">
         <div class="spinner"></div>
-        <div>Loading stream...</div>
+        <div>Loading stream…</div>
       </div>
       <video id="video" controls autoplay></video>
+
+      <div id="source-selector" role="dialog" aria-labelledby="source-title" aria-label="Select a stream source">
+        <div class="source-panel">
+          <h2 class="source-panel__title" id="source-title">Select a stream source</h2>
+          <p class="hint">Several servers carry this match. If one stalls, come back and pick another.</p>
+          <div id="source-buttons"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -140,28 +366,35 @@
     let hls = null;
     let currentMatches = [];
 
+    // Catalog text is upstream data, so it is escaped before it is
+    // interpolated into card markup. Non-strings stringify exactly as before,
+    // so a missing background still reaches the img onerror as "undefined".
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
     async function loadTabs() {
       try {
         const res = await fetch('/manifest.json');
         const manifest = await res.json();
         const tabsContainer = document.getElementById('tabs');
         tabsContainer.innerHTML = '';
-        
+
         let firstCatalog = null;
         let firstTab = null;
 
         manifest.catalogs.forEach((catalog) => {
           // Skip non-TV catalogs or internal ones
           if (catalog.type !== 'tv' || catalog.id === 'nuvio_sports_teams') return;
-          
+
           if (!firstCatalog) firstCatalog = catalog.id;
-          
-          const tab = document.createElement('div');
+
+          const tab = document.createElement('button');
+          tab.type = 'button';
           tab.className = 'tab';
+          tab.setAttribute('aria-pressed', 'false');
           tab.innerText = catalog.name.replace('nuvio ', '').replace('Nuvio ', '');
           tab.onclick = () => loadCatalog(catalog.id, tab);
           tabsContainer.appendChild(tab);
-          
+
           if (!firstTab) firstTab = tab;
         });
 
@@ -170,20 +403,21 @@
         }
       } catch (err) {
         console.error('Failed to load manifest', err);
-        document.getElementById('tabs').innerHTML = '<div style="color:var(--accent);">Failed to load catalogs. Ensure server is running.</div>';
+        document.getElementById('tabs').innerHTML = '<div class="callout callout--error" role="alert"><span>Couldn’t load the catalog list. The server may still be starting up.</span><button type="button" class="btn btn--secondary" onclick="loadTabs()">Retry</button></div>';
       }
     }
 
     async function loadCatalog(catalogId, tabElement) {
       if (tabElement) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-pressed', 'false'); });
         tabElement.classList.add('active');
+        tabElement.setAttribute('aria-pressed', 'true');
       }
 
       const grid = document.getElementById('grid');
-      grid.innerHTML = '<div style="color:var(--text-muted);">Fetching matches...</div>';
+      grid.innerHTML = '<p class="grid-status status" role="status">Fetching matches…</p>';
       document.getElementById('searchInput').value = ''; // Reset search on tab change
-      
+
       try {
         const res = await fetch(`/catalog/tv/${catalogId}.json`);
         const data = await res.json();
@@ -191,14 +425,14 @@
         renderGrid(currentMatches);
       } catch (err) {
         console.error(err);
-        grid.innerHTML = '<div style="color:var(--accent);">Failed to load catalog. Ensure the Nuvio addon is running.</div>';
+        grid.innerHTML = `<div class="grid-status callout callout--error" role="alert"><span>Couldn’t load this catalog. It may be unavailable right now.</span><button type="button" class="btn btn--secondary" onclick="loadCatalog('${esc(catalogId)}')">Retry</button></div>`;
       }
     }
 
     document.getElementById('searchInput').addEventListener('input', (e) => {
       const query = e.target.value.toLowerCase();
-      const filtered = currentMatches.filter(meta => 
-        meta.name.toLowerCase().includes(query) || 
+      const filtered = currentMatches.filter(meta =>
+        meta.name.toLowerCase().includes(query) ||
         (meta.description && meta.description.toLowerCase().includes(query))
       );
       renderGrid(filtered);
@@ -207,9 +441,9 @@
     function renderGrid(metas) {
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
-      
+
       if (!metas || metas.length === 0) {
-        grid.innerHTML = '<div style="color:var(--text-muted);">No live matches found matching your criteria right now.</div>';
+        grid.innerHTML = '<p class="grid-status status" role="status">No matches here right now. Try another catalog, or clear the search.</p>';
         return;
       }
 
@@ -217,20 +451,27 @@
         const card = document.createElement('div');
         card.className = 'card';
         card.onclick = () => fetchAndPlay(meta.id);
-        
+
         const isLive = meta.name.includes('🔴');
         const cleanName = meta.name.replace('🔴 [LIVE] ', '');
-        
+
+        // A div with .onclick cannot be reached or fired from a keyboard or a
+        // TV remote; these four lines are what make the tile operable.
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', isLive ? cleanName + ' (live)' : cleanName);
+        card.tabIndex = 0;
+        card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fetchAndPlay(meta.id); } };
+
         card.innerHTML = `
           <div class="poster-container">
-            <img class="background" src="${meta.background}" onerror="this.style.display='none'" loading="lazy">
-            <img class="poster" src="${meta.poster}" onerror="this.src='https://raw.githubusercontent.com/stremio/stremio-addon-sdk/master/docs/api/images/stremio-logo.png'" loading="lazy">
-            ${meta.logo && meta.logo !== meta.poster ? `<img class="logo" src="${meta.logo}">` : ''}
+            <img class="background" src="${esc(meta.background)}" onerror="this.style.display='none'" loading="lazy" alt="">
+            <img class="poster" src="${esc(meta.poster)}" onerror="this.src='https://raw.githubusercontent.com/stremio/stremio-addon-sdk/master/docs/api/images/stremio-logo.png'" loading="lazy" alt="">
+            ${meta.logo && meta.logo !== meta.poster ? `<img class="logo" src="${esc(meta.logo)}" alt="">` : ''}
             ${isLive ? '<div class="live-badge">LIVE</div>' : ''}
           </div>
           <div class="info">
-            <div class="title">${cleanName}</div>
-            <div class="desc">${(meta.description || '').replace(/\n/g, '<br>')}</div>
+            <div class="title">${esc(cleanName)}</div>
+            <div class="desc">${esc(meta.description || '').replace(/\n/g, '<br>')}</div>
           </div>
         `;
         grid.appendChild(card);
@@ -243,13 +484,13 @@
       document.getElementById('source-selector').style.display = 'none';
       const video = document.getElementById('video');
       video.style.opacity = '0';
-      
+
       try {
         const res = await fetch(`/stream/tv/${id}.json`);
         const data = await res.json();
-        
+
         if (!data.streams || data.streams.length === 0) {
-          alert('No streams found for this match.');
+          notify('No streams found for this match.');
           closePlayer();
           return;
         }
@@ -261,7 +502,7 @@
           const selector = document.getElementById('source-selector');
           const btnContainer = document.getElementById('source-buttons');
           btnContainer.innerHTML = '';
-          
+
           data.streams.forEach(stream => {
             const btn = document.createElement('button');
             btn.className = 'source-btn';
@@ -273,12 +514,12 @@
             };
             btnContainer.appendChild(btn);
           });
-          
+
           selector.style.display = 'flex';
         }
       } catch (err) {
         console.error(err);
-        alert('Error resolving stream.');
+        notify('Something went wrong resolving that stream.');
         closePlayer();
       }
     }
@@ -289,13 +530,13 @@
         closePlayer();
         return;
       }
-      
+
       const video = document.getElementById('video');
       document.getElementById('loader').style.display = 'none';
       video.style.opacity = '1';
 
       if (!url) {
-        alert('This stream cannot be played in the browser directly.');
+        notify('This stream cannot be played in the browser. Open it in an external player instead.');
         closePlayer();
         return;
       }
@@ -326,6 +567,69 @@
 
     loadTabs();
   </script>
+
+  <script>
+  // Page shell, kept out of the player script above: the failure surface the
+  // player used to get from alert(), and the exits a full-screen modal needs.
+  (() => {
+    const overlay = document.getElementById('player-overlay');
+    const container = document.getElementById('video-container');
+    const closeBtn = document.getElementById('close-btn');
+    const host = document.getElementById('page-alert');
+
+    // Replaces three alert() calls: a light-mode OS dialog over a dark
+    // full-screen player, dismissed before the page behind it was readable.
+    window.notify = function notify(message) {
+      if (!host) return;
+      host.textContent = '';
+      const box = document.createElement('div');
+      box.className = 'callout callout--error';
+      const text = document.createElement('span');
+      text.textContent = message;
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.className = 'icon-btn';
+      dismiss.setAttribute('aria-label', 'Dismiss message');
+      dismiss.textContent = '✕';
+      dismiss.addEventListener('click', () => { host.textContent = ''; });
+      box.append(text, dismiss);
+      host.appendChild(box);
+    };
+
+    const isOpen = () => overlay && getComputedStyle(overlay).display !== 'none';
+
+    // The close button was the only way out. Escape and the backdrop are the
+    // two every full-screen player is expected to answer to.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen()) closePlayer();
+    });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay || e.target === container) closePlayer();
+    });
+
+    // Focus follows the player in and back out again, and the page behind it
+    // stops being tabbable while it is open.
+    let wasOpen = false;
+    let lastFocus = null;
+    const sync = () => {
+      const open = isOpen();
+      if (open === wasOpen) return;
+      wasOpen = open;
+      const behind = [document.querySelector('.appbar'), document.getElementById('main')];
+      if (open) {
+        lastFocus = document.activeElement;
+        behind.forEach(el => { if (el) el.inert = true; });
+        if (closeBtn) closeBtn.focus();
+      } else {
+        behind.forEach(el => { if (el) el.inert = false; });
+        if (lastFocus && lastFocus.isConnected) lastFocus.focus();
+        lastFocus = null;
+      }
+    };
+    new MutationObserver(sync).observe(overlay, { attributes: true, attributeFilter: ['style'] });
+  })();
+  </script>
+
 <script>
   // Sign out is only meaningful when this server asks for a password. Without
   // one there is nothing to sign out of, so the button stays hidden rather than

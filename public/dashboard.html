@@ -4,130 +4,256 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AIOSports — Dashboard</title>
-  <link rel="icon" type="image/png" href="/logo-v2.png">
-  <link rel="apple-touch-icon" href="/logo-v2.png">
+<link rel="icon" type="image/png" href="/logo-v2.png">
+<link rel="apple-touch-icon" href="/logo-v2.png">
+<link rel="stylesheet" href="/app.css">
 <style>
-  :root {
-    --bg: #0b0b0d; --panel: #151518; --line: #26262c;
-    --text: #f2f2f4; --dim: #9a9aa4; --accent: #1668ff; --ok: #3fb950; --warn: #d29922;
+  /* ------------------------------------------------------------------ */
+  /* Page-local only. Everything that app.css already owns — colour, type,  */
+  /* spacing, radii, focus, buttons, inputs, callouts, badges, motion —     */
+  /* is used from there. Every value below is a token.                      */
+  /* ------------------------------------------------------------------ */
+
+  /* CONTRACT GUARD. The whole signed-in / signed-out state machine is the
+     `hidden` property on #panel, #signin, #lockBtn and #lockNote — never a
+     class. app.css declares this too; it is repeated here so that no display
+     rule on this page (or a later edit to app.css) can ever leak the panel to
+     a signed-out visitor. */
+  [hidden] { display: none !important; }
+
+  /* app.css styles .btn but not a link wearing one. */
+  a.btn { text-decoration: none; }
+
+  /* Chrome and content share ONE gutter at every width. app.css narrows
+     .page's gutter under 40rem but not .appbar__inner's, which would put the
+     title and the first card back on two different grids on a phone. */
+  @media (max-width: 40rem) {
+    .appbar__inner { padding-left: var(--s3); padding-right: var(--s3); gap: var(--s2); }
+    /* A wordmark, a page title and two controls do not fit across 375px — they
+       overlap. The title and both controls stay; the wordmark's only job is a
+       link to /, which the catalog button already does. */
+    .wordmark, .brand__sep { display: none; }
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  .brand { display: flex; align-items: baseline; gap: var(--s2); min-width: 0; }
+  .brand__sep { color: var(--text-faint); }
+  /* One h1, at chrome size: --t-display would be 2rem inside a 1.5rem-tall bar. */
+  .appbar__title { font: var(--t-heading); letter-spacing: var(--track-body); color: var(--text); white-space: nowrap; }
+  /* Chrome controls never wrap to two lines; there is no room for it. */
+  .appbar .btn { white-space: nowrap; }
+
+  /* Vertical rhythm between the two page states and the status line. */
+  #flash, #lockNote { margin-top: var(--s5); }
+
+  /* ---- Stats ------------------------------------------------------- */
+  /* 24rem columns give exactly two columns inside .page's 62rem measure, so
+     the four cards land 2x2 instead of four ragged 235px strips that orphan
+     the fourth. Ordered so the two cards WITH a progress bar share row one and
+     the two without share row two: every row then matches line for line. */
+  .stats { display: grid; gap: var(--s4); grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); }
+  .stat-card > * + * { margin-top: var(--s3); }
+
+  /* .caption is --text-faint (~3.9:1 on --surface): right for a hint under a
+     field, thin for a heading — and the audit found the card title and the row
+     labels rendering in the exact same grey. Titles step to --text, labels stay
+     --text-dim, so the two never collide again. */
+  h2.caption { color: var(--text); }
+
+  .stat-value { font: var(--t-title); letter-spacing: var(--track-title); color: var(--text); }
+  .stat-sub { margin: var(--s1) 0 0; font: var(--t-caption); letter-spacing: var(--track-caption); color: var(--text-dim); }
+
+  .stat-rows { margin: 0; }
+  .stat-row { padding: var(--s2) 0; font: var(--t-small); }
+  .stat-rows > * + * { border-top: 1px solid var(--line); }
+  .stat-rows dt { color: var(--text-dim); }
+  .stat-rows dd { margin: 0; font-weight: 600; color: var(--text); text-align: right; }
+
+  /* CONTRACT: .bar is the clipping track and .bar > i is a DIRECT child whose
+     inline width is written by refresh(). Neither may gain a wrapper.
+     The old track (#222228 on #151518) sat at ~1.15:1 — invisible until data
+     arrived, so an un-run warmer looked like a rendering bug. A lighter surface
+     plus a real border makes the empty track legible on its own. */
+  .bar {
+    height: var(--s3); border-radius: var(--r-full);
+    background: var(--surface-hover); border: 1px solid var(--line-strong);
+    overflow: hidden;
   }
-  header {
-    display: flex; align-items: center; gap: 14px;
-    padding: 18px 24px; border-bottom: 1px solid var(--line);
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+
+  /* ---- Actions ----------------------------------------------------- */
+  .actions { display: flex; flex-wrap: wrap; gap: var(--s3); }
+
+  /* The two irreversible controls used to be 10px from the safe pair, same
+     size, same shape, separated only by a border colour. They now get their
+     own surface, their own heading and real distance. */
+  .danger-zone {
+    border: 1px solid var(--line-strong); border-left: 3px solid var(--danger);
+    border-radius: var(--r-lg); background: var(--surface-sunk);
+    padding: var(--s4) var(--s5);
   }
-  header h1 { font-size: 18px; margin: 0; font-weight: 650; }
-  header a { color: var(--dim); text-decoration: none; font-size: 14px; }
-  header a:hover { color: var(--text); }
-  .spacer { flex: 1; }
-  main { padding: 24px; max-width: 1000px; margin: 0 auto; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-  .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 18px;
+  .danger-zone > * + * { margin-top: var(--s3); }
+
+  /* CONTRACT: the warm / stop pair are driven by the .disabled property.
+     app.css carries the visible part (.btn:disabled { opacity: .45 }) and every
+     button on this page wears .btn; this keeps the cursor on the bare element. */
+  button:disabled { cursor: not-allowed; }
+
+  /* ---- Status line -------------------------------------------------- */
+  /* Styled by ID ONLY, never by class. flash() assigns el.className wholesale
+     (`el.className = isError ? 'err' : ''`), so any layout or utility class put
+     on #flash is wiped the first time a message fires. */
+  #flash {
+    margin-bottom: 0; min-height: var(--s5); max-width: var(--measure);
+    font: var(--t-small); color: var(--ok);
   }
-  .card h2 {
-    margin: 0 0 14px; font-size: 12px; letter-spacing: .09em;
-    text-transform: uppercase; color: var(--dim); font-weight: 600;
+  #flash.err { color: var(--danger); }
+  /* Animation 1 of 2. Fires only on empty -> non-empty, i.e. when a message
+     actually arrives; changing one message for another does not restart it. */
+  #flash:not(:empty) { animation: rise var(--d-pop) var(--ease-out) both; }
+
+  /* CONTRACT: the <code> in #lockNote is injected at runtime by innerHTML and
+     exists in no static markup, so it can only be reached element-side.
+     The sign-in hint names the same env var, so it gets the same chip. */
+  .note code, .hint code {
+    font: var(--t-small); font-family: var(--font-mono);
+    background: var(--surface-raised); border: 1px solid var(--line);
+    border-radius: var(--r-sm); padding: 0 var(--s1);
   }
-  .row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
-  .row span:first-child { color: var(--dim); }
-  .big { font-size: 30px; font-weight: 650; letter-spacing: -.02em; }
-  .bar { height: 7px; border-radius: 4px; background: #222228; overflow: hidden; margin-top: 10px; }
-  .bar > i { display: block; height: 100%; background: var(--accent); transition: width .4s; }
-  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-  button {
-    font: inherit; font-size: 14px; padding: 9px 15px; border-radius: 9px; cursor: pointer;
-    background: #1f1f24; color: var(--text); border: 1px solid var(--line);
-  }
-  button:hover:not(:disabled) { background: #2a2a31; }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  button.danger { border-color: #5a2326; color: #ff8d90; }
-  button.danger:hover:not(:disabled) { background: #2a1618; }
-  .note {
-    margin-top: 18px; padding: 13px 15px; border-radius: 10px;
-    background: #1c1a12; border: 1px solid #3d3218; color: #e5c07b; font-size: 13.5px;
-  }
-  .note code { background: #241f14; padding: 1px 6px; border-radius: 5px; }
-  #flash { margin-top: 16px; font-size: 14px; min-height: 20px; color: var(--ok); }
-  #flash.err { color: #ff8d90; }
-  .dim { color: var(--dim); }
+
+  /* ---- Sign in ------------------------------------------------------ */
+  .signin-card { max-width: 34rem; }
+  .signin-card > * + * { margin-top: var(--s4); }
 </style>
 </head>
 <body>
-<header>
-  <h1>⚙️ Live Sports — Dashboard</h1>
-  <div class="spacer"></div>
-  <button id="lockBtn" hidden style="padding:7px 13px">Sign out</button>
-  <a href="/">← Back to catalog</a>
+
+<header class="appbar">
+  <div class="appbar__inner">
+    <div class="brand">
+      <a class="wordmark" href="/">AIOSports</a>
+      <span class="brand__sep" aria-hidden="true">/</span>
+      <h1 class="appbar__title">Dashboard</h1>
+    </div>
+    <div class="spacer"></div>
+    <!-- Two controls of comparable weight, so one shape for both. -->
+    <a class="btn btn--ghost" href="/">Catalog</a>
+    <button id="lockBtn" class="btn btn--secondary" type="button" hidden>Sign out</button>
+  </div>
 </header>
 
-<div id="signin" hidden style="max-width:1000px;margin:24px auto 0;padding:0 24px">
-  <form class="card" id="signinForm" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
-    <div style="flex:1 1 240px">
-      <h2 style="margin-bottom:6px">Dashboard password</h2>
-      <div class="dim" style="font-size:13.5px">Sign in with ADMIN_TOKEN. Everything on this page needs it, including the stats.</div>
-    </div>
-    <input id="pw" type="password" placeholder="Password" autocomplete="current-password"
-      style="font:inherit;font-size:14px;padding:9px 13px;border-radius:9px;background:#1f1f24;color:var(--text);border:1px solid var(--line);min-width:200px">
-    <button type="submit">Sign in</button>
-  </form>
-</div>
+<main class="page">
 
-<main id="panel" hidden>
-  <div class="grid">
-    <div class="card">
-      <h2>Card cache</h2>
-      <div class="big" id="cardEntries">–</div>
-      <div class="bar"><i id="cardBar" style="width:0"></i></div>
-      <div class="row"><span>Hit rate</span><b id="cardHit">–</b></div>
-      <div class="row"><span>Size</span><b id="cardBytes">–</b></div>
-      <div class="row"><span>JPEG quality</span><b id="quality">–</b></div>
-      <div class="row"><span>Finished cards</span><b id="finished">–</b></div>
-      <div class="row"><span>Artwork generation</span><b id="artGen">–</b></div>
-    </div>
-
-    <div class="card">
-      <h2>Upstream images</h2>
-      <div class="big" id="upEntries">–</div>
-      <div class="row"><span>Hit rate</span><b id="upHit">–</b></div>
-      <div class="row"><span>Size</span><b id="upBytes">–</b></div>
-      <div class="row"><span>Known-bad URLs</span><b id="negs">–</b></div>
-    </div>
-
-    <div class="card">
-      <h2>Warming</h2>
-      <div class="big" id="warmState">–</div>
-      <div class="bar"><i id="warmBar" style="width:0"></i></div>
-      <div class="row"><span>Rendered</span><b id="warmDone">–</b></div>
-      <div class="row"><span>Errors</span><b id="warmErrors">–</b></div>
-      <div class="row"><span>Already fresh</span><b id="warmSkipped">–</b></div>
-      <div class="row"><span>Started by</span><b id="warmReason">–</b></div>
-      <div class="row"><span>Last run</span><b id="warmLast">–</b></div>
-    </div>
-
-    <div class="card">
-      <h2>Process</h2>
-      <div class="big" id="matches">–</div>
-      <div class="row"><span>Events cached</span><b id="matches2">–</b></div>
-      <div class="row"><span>Memory</span><b id="mem">–</b></div>
-      <div class="row"><span>Uptime</span><b id="uptime">–</b></div>
-    </div>
+  <!-- Signed out, with a token set on the container. -->
+  <div id="signin" hidden>
+    <!-- Animation 2 of 2: .pop-in from app.css. The card is revealed by an
+         async gate check, so without it the page snaps from empty to a form. -->
+    <form class="card pop-in signin-card" id="signinForm">
+      <div>
+        <h2>Dashboard password</h2>
+        <p class="hint">Sign in with <code>ADMIN_TOKEN</code>. Everything on this page needs it, including the stats.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="pw">Password</label>
+        <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="ADMIN_TOKEN">
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">Sign in</button>
+    </form>
   </div>
 
-  <div class="actions">
-    <button id="warmBtn">Warm cards now</button>
-    <button id="cancelBtn">Stop warming</button>
-    <button id="clearCards" class="danger">Clear card cache</button>
-    <button id="clearAll" class="danger">Clear everything</button>
+  <!-- Signed in. -->
+  <div id="panel" class="stack-lg" hidden>
+
+    <div class="stats">
+
+      <section class="card stat-card" aria-labelledby="h-cards">
+        <h2 class="caption" id="h-cards">Card cache</h2>
+        <div>
+          <div class="stat-value" id="cardEntries">–</div>
+          <p class="stat-sub">Entries of the limit</p>
+        </div>
+        <div class="bar" aria-hidden="true"><i id="cardBar" style="width:0"></i></div>
+        <dl class="stat-rows">
+          <div class="row-between stat-row"><dt>Hit rate</dt><dd class="num" id="cardHit">–</dd></div>
+          <div class="row-between stat-row"><dt>Size</dt><dd class="num" id="cardBytes">–</dd></div>
+          <div class="row-between stat-row"><dt>JPEG quality</dt><dd class="num" id="quality">–</dd></div>
+          <div class="row-between stat-row"><dt>Finished cards</dt><dd class="num" id="finished">–</dd></div>
+          <div class="row-between stat-row"><dt>Artwork generation</dt><dd class="num" id="artGen">–</dd></div>
+        </dl>
+      </section>
+
+      <section class="card stat-card" aria-labelledby="h-warm">
+        <h2 class="caption" id="h-warm">Warming</h2>
+        <div>
+          <div class="stat-value" id="warmState">–</div>
+          <p class="stat-sub">Warmer state</p>
+        </div>
+        <div class="bar" aria-hidden="true"><i id="warmBar" style="width:0"></i></div>
+        <dl class="stat-rows">
+          <div class="row-between stat-row"><dt>Rendered</dt><dd class="num" id="warmDone">–</dd></div>
+          <div class="row-between stat-row"><dt>Errors</dt><dd class="num" id="warmErrors">–</dd></div>
+          <div class="row-between stat-row"><dt>Already fresh</dt><dd class="num" id="warmSkipped">–</dd></div>
+          <div class="row-between stat-row"><dt>Started by</dt><dd id="warmReason">–</dd></div>
+          <div class="row-between stat-row"><dt>Last run</dt><dd class="num" id="warmLast">–</dd></div>
+        </dl>
+      </section>
+
+      <section class="card stat-card" aria-labelledby="h-up">
+        <h2 class="caption" id="h-up">Upstream images</h2>
+        <div>
+          <div class="stat-value" id="upEntries">–</div>
+          <p class="stat-sub">Images cached</p>
+        </div>
+        <dl class="stat-rows">
+          <div class="row-between stat-row"><dt>Hit rate</dt><dd class="num" id="upHit">–</dd></div>
+          <div class="row-between stat-row"><dt>Size</dt><dd class="num" id="upBytes">–</dd></div>
+          <div class="row-between stat-row"><dt>Known-bad URLs</dt><dd class="num" id="negs">–</dd></div>
+        </dl>
+      </section>
+
+      <section class="card stat-card" aria-labelledby="h-proc">
+        <h2 class="caption" id="h-proc">Process</h2>
+        <div>
+          <div class="stat-value" id="matches">–</div>
+          <p class="stat-sub">Events cached</p>
+          <!-- refresh() writes the SAME number to #matches and #matches2, which
+               printed it twice in one card. Both ids still exist because the
+               script writes both; this one is hidden from sight and from
+               assistive tech so it is not announced twice. -->
+          <span class="sr-only" id="matches2" aria-hidden="true">–</span>
+        </div>
+        <dl class="stat-rows">
+          <div class="row-between stat-row"><dt>Memory</dt><dd class="num" id="mem">–</dd></div>
+          <div class="row-between stat-row"><dt>Uptime</dt><dd class="num" id="uptime">–</dd></div>
+        </dl>
+      </section>
+
+    </div>
+
+    <section aria-labelledby="h-ops">
+      <h2 class="caption" id="h-ops">Operations</h2>
+      <p class="hint">Warming redraws cards ahead of the players asking for them. It runs slowly on purpose.</p>
+      <div class="actions">
+        <button id="warmBtn" class="btn btn--primary" type="button">Warm cards now</button>
+        <button id="cancelBtn" class="btn btn--secondary" type="button">Stop warming</button>
+      </div>
+    </section>
+
+    <section class="danger-zone" aria-labelledby="h-danger">
+      <h2 class="caption" id="h-danger">Irreversible</h2>
+      <p class="hint">Both of these give every card a new address. Players only pick the new ones up the next time a tab is opened — on a TV, when the app is reopened.</p>
+      <div class="actions">
+        <button id="clearCards" class="btn btn--danger" type="button">Clear card cache</button>
+        <button id="clearAll" class="btn btn--danger" type="button">Clear everything</button>
+      </div>
+    </section>
+
   </div>
 
-  <div id="flash"></div>
-  <div class="note" id="lockNote" hidden></div>
+  <!-- Both of these sit OUTSIDE #panel on purpose. They used to be children of
+       it, so refresh() hid the panel and then showed a message inside it:
+       the "dashboard is closed" note and every sign-in error were unreachable. --><p id="flash" role="status" aria-live="polite"></p>
+  <div class="note callout callout--info" id="lockNote" hidden></div>
+
 </main>
 
 <script>
@@ -298,7 +424,13 @@ $('cancelBtn').onclick = () => act('/api/cache/warm/cancel', 'Warming stopped.')
 const clearedText = done => body => done + (body.generation && body.generation.bumped === false
   ? ' Warming restarted. Card addresses were already renewed in the last 30 seconds, so players keep the ones they just got.'
   : ' Every card has a new address and warming has started. Players get the new cards the next time they open a tab (on a TV, reopen the app).');
-$('clearCards').onclick = () => act('/api/cache/clear?what=cards', clearedText('Card cache cleared.'));
+// Clearing cards re-addresses every card in every player, which is the more
+// visible of the two consequences -- so it asks, exactly as clearAll does.
+$('clearCards').onclick = () => {
+  if (confirm('Clear the card cache? Every card gets a new address and is redrawn.')) {
+    act('/api/cache/clear?what=cards', clearedText('Card cache cleared.'));
+  }
+};
 $('clearAll').onclick = () => {
   if (confirm('Clear every cache? Logos are fetched again before cards are redrawn from them.')) {
     act('/api/cache/clear?what=all', clearedText('All caches cleared.'));

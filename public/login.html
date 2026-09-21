@@ -4,55 +4,100 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AIOSports — Sign in</title>
-  <link rel="icon" type="image/png" href="/logo-v2.png">
-  <link rel="apple-touch-icon" href="/logo-v2.png">
+<link rel="icon" type="image/png" href="/logo-v2.png">
+<link rel="apple-touch-icon" href="/logo-v2.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
 <style>
-  :root { --bg:#0b0b0d; --panel:#151518; --line:#26262c; --text:#f2f2f4; --dim:#9a9aa4; --accent:#1668ff; }
-  * { box-sizing: border-box; }
-  body {
-    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    background:
-      radial-gradient(900px 500px at 50% -10%, rgba(22, 104, 255,.13), transparent 65%),
-      var(--bg);
-    color: var(--text);
-    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    padding: 24px;
+  /*
+   * Page-scoped layout only. Colour, type, spacing, radii, shadow, focus ring,
+   * button and input behaviour all come from /app.css. Nothing here invents a
+   * colour, a duration or an easing.
+   */
+
+  /* dvh first with a vh fallback: on iOS Safari 100vh is taller than the
+     visible viewport, so a "centred" card sits low and the keyboard shoves it
+     off the bottom. */
+  .gate {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: var(--s5) var(--s4);
+    /* The one page-specific flourish, built from the accent wash token so no
+       new colour enters the system. */
+    background: radial-gradient(60rem 30rem at 50% -10%, var(--accent-wash), transparent 65%);
   }
-  .box {
-    width: 100%; max-width: 380px; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 16px; padding: 30px 28px;
-    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+
+  /* 22rem, not .page--narrow's 34rem: that measure is sized for reading, and
+     this card holds one field. */
+  .gate__card { width: 100%; max-width: 22rem; }
+
+  .gate__mark {
+    display: block;
+    width: var(--s7); height: var(--s7);
+    border-radius: var(--r-md);
+    margin-bottom: var(--s4);
   }
-  .mark { font-size: 30px; line-height: 1; margin-bottom: 14px; }
-  h1 { font-size: 20px; margin: 0 0 6px; font-weight: 650; letter-spacing: -.01em; }
-  p.sub { margin: 0 0 22px; color: var(--dim); font-size: 14px; }
-  label { display:block; font-size: 12px; letter-spacing:.08em; text-transform: uppercase;
-          color: var(--dim); font-weight: 600; margin-bottom: 7px; }
-  input {
-    width: 100%; font: inherit; font-size: 15px; padding: 11px 14px; border-radius: 10px;
-    background: #1f1f24; color: var(--text); border: 1px solid var(--line);
+
+  .gate__sub { font: var(--t-small); color: var(--text-dim); margin: var(--s2) 0 var(--s5); }
+  .gate__field { margin-bottom: var(--s4); }
+
+  /* The message slot keeps its height while empty (one line of --t-small), so
+     the card does not grow the first time an error appears and shift the
+     button out from under the pointer. */
+  #msg {
+    min-height: 1.25rem;
+    margin-top: var(--s3);
+    font: var(--t-small);
+    color: var(--danger);
   }
-  input:focus { outline: none; border-color: #3a3a44; }
-  button {
-    width: 100%; margin-top: 14px; font: inherit; font-size: 15px; font-weight: 650;
-    padding: 11px 14px; border-radius: 10px; cursor: pointer; border: none;
-    background: var(--accent); color: #fff;
+  /* Animation 1 of 2 — see the report. Re-arms every attempt because the
+     script clears #msg before each fetch, which drops the :not(:empty) match. */
+  #msg:not(:empty) { animation: rise var(--d-panel) var(--ease-out) both; }
+
+  /* The field carries the failure too, driven entirely by the text the script
+     already writes. No extra scripting, and it clears itself on the next try. */
+  #form:has(#msg:not(:empty)) #key { border-color: var(--danger); }
+
+  /* Animation 2 of 2. #go is disabled only while the request is in the air, so
+     :disabled is exactly the pending state. Absolute + auto margins centres it
+     without a transform, leaving transform free for the rotation. */
+  #go { position: relative; }
+  #go:disabled::after {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0; right: var(--s4);
+    margin: auto 0;
+    width: var(--s4); height: var(--s4);
+    border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+    border-top-color: currentColor;
+    border-radius: var(--r-full);
+    animation: gate-spin calc(var(--d-modal) * 3) linear infinite;
   }
-  button:hover:not(:disabled) { filter: brightness(1.1); }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  #msg { margin-top: 14px; min-height: 20px; font-size: 14px; color: #ff8d90; }
+  @keyframes gate-spin { to { transform: rotate(1turn); } }
 </style>
 </head>
 <body>
-  <form class="box" id="form">
-    <div class="mark">🏟️</div>
-    <h1>AIOSports</h1>
-    <p class="sub">Sign in to browse the catalog.</p>
-    <label for="key">Password</label>
-    <input id="key" type="password" autocomplete="current-password" autofocus>
-    <button type="submit" id="go">Sign in</button>
-    <div id="msg"></div>
-  </form>
+  <main class="gate">
+    <form class="card card--raised gate__card" id="form">
+      <img class="gate__mark" src="/logo-v2.png" alt="" width="48" height="48">
+      <h1>AIOSports</h1>
+      <p class="gate__sub">Sign in to browse the catalog.</p>
+
+      <div class="field gate__field">
+        <label class="field__label" for="key">Password</label>
+        <input id="key" type="password" autocomplete="current-password" required autofocus
+               enterkeyhint="go" aria-describedby="key-hint msg">
+        <span class="field__hint" id="key-hint">The AUTH_KEY set on your AIOSports container.</span>
+      </div>
+
+      <button class="btn btn--primary btn--block btn--lg" type="submit" id="go">Sign in</button>
+      <div id="msg" role="alert" aria-live="assertive"></div>
+    </form>
+  </main>
 
 <script>
 const form = document.getElementById('form');

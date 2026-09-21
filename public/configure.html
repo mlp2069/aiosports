@@ -7,771 +7,488 @@
   <title>AIOSports | Setup</title>
   <link rel="icon" type="image/png" href="/logo-v2.png">
   <link rel="apple-touch-icon" href="/logo-v2.png">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@700;900&display=swap"
-    rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Outfit alone. app.css's body face is system-ui and Outfit is kept for the
+       wordmark and the one display size, so the three Inter weights this page
+       used to fetch are now downloaded for nothing. -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/app.css">
   <style>
-    :root {
-      --bg: #09090b;
-      --card-bg: rgba(28, 28, 30, 0.4);
-      --card-border: rgba(255, 255, 255, 0.05);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --accent: #1668ff;
-      --accent-glow: rgba(22, 104, 255, 0.32);
-      --glass: rgba(255, 255, 255, 0.02);
+    /* ------------------------------------------------------------------ *
+     * Page-local ARRANGEMENT only.
+     *
+     * Colour, type, space, radii, shadow, motion, focus, buttons, inputs,
+     * segmented controls, chips, tiles, callouts, badges and dialogs all come
+     * from /app.css, and every value below is one of its tokens. What is here
+     * is the layout of the four things this page owns that app.css does not
+     * know about: the draggable source list, the catalog rows, the copy rows
+     * and the import dropzone.
+     * ------------------------------------------------------------------ */
+
+    /* The UA underlines a link; the button and chip it is wearing do not. */
+    a.btn, a.chip { text-decoration: none; }
+
+    /* One rhythm, owned by .stack, so paragraphs carry no margin of their own. */
+    .page p { margin-bottom: 0; }
+
+    /* Anchor targets have to clear the sticky bar. */
+    .sec { scroll-margin-top: var(--s8); }
+
+    /* A title and its one-line description, side by side while they fit. */
+    .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); }
+
+    /* ---- header ---------------------------------------------------- */
+    .hero { display: flex; align-items: center; gap: var(--s4); }
+    .hero__logo {
+      flex: none; width: 3.5rem; height: 3.5rem; object-fit: cover;
+      border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--surface);
+    }
+    .hero__text { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+    .hero__title { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+    .dot { flex: none; width: var(--s2); height: var(--s2); border-radius: var(--r-full); background: var(--accent); }
+    /* Flex rather than a block: until /api/version answers, the two spans inside
+       generate no line box and the line costs no height. */
+    /* The build sha is 40 characters of unbreakable hex; without wrapping it
+   runs off the right edge of a phone. */
+    .build-line { display: flex; flex-wrap: wrap; gap: var(--s2); overflow-wrap: anywhere; }
+
+    .chiprow { display: flex; flex-wrap: wrap; gap: var(--s2); }
+
+    /* The bar's one job is this button; it does not break across two lines. */
+    #installBtn { white-space: nowrap; }
+    /* Under about 384px the word beside the wordmark is what has to give. */
+    @media (max-width: 24rem) { .appbar .caption { display: none; } }
+
+    /* ---- progressive disclosure ------------------------------------- */
+    details.card { padding: 0; }
+    details.card > summary {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3);
+      padding: var(--s5); border-radius: var(--r-lg); cursor: pointer; list-style: none;
+    }
+    details.card > summary::-webkit-details-marker { display: none; }
+    .chev { flex: none; margin-left: auto; align-self: center; color: var(--text-dim); }
+    details[open] > summary .chev { transform: rotate(180deg); }
+    .disclosure { padding: 0 var(--s5) var(--s5); }
+    @media (hover: hover) and (pointer: fine) {
+      details.card > summary:hover { background: var(--surface-hover); }
     }
 
-    /* Without this, `width: 100%` plus padding measures wider than 100%.
-       .btn is the case that bit: as an <a> it defaulted to content-box, so
-       INSTALL ADDON came out 313px + 16px padding either side = 345px on a
-       375px phone and pushed the whole page into a sideways scroll. The
-       neighbouring COPY LINK looked fine only because it is a <button>, which
-       browsers already default to border-box. */
-    *, *::before, *::after { box-sizing: border-box; }
-
-    /* `hidden` is only a default of display:none, so any rule that sets display
-       silently outranks it. .cat-bulk says display:flex, which left the bulk bar
-       -- "0 selected" plus ten action chips, 191px of it -- parked on screen at
-       all times even though the script had correctly marked it hidden. */
-    [hidden] { display: none !important; }
-
-    body {
-      margin: 0;
-      padding: 20px;
-      font-family: 'Inter', sans-serif;
-      background-color: var(--bg);
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background-image:
-        radial-gradient(circle at 15% 50%, rgba(22, 104, 255, 0.08), transparent 25%),
-        radial-gradient(circle at 85% 30%, rgba(22, 104, 255, 0.05), transparent 25%);
+    /* ---- fields ------------------------------------------------------ */
+    .field + .field { margin-top: var(--s5); }
+    .field input[type="text"], .field select, .field textarea { max-width: var(--measure); }
+    /* Native box, native tick, native focus ring, and the accent from the token
+       set. The old one painted its own check with a ✓ glyph and deleted the
+       outline without putting anything back. */
+    .checkbox-label input[type="checkbox"] {
+      flex: none; width: var(--s4); height: var(--s4); accent-color: var(--accent); cursor: pointer;
     }
 
-    .container {
-      background: var(--card-bg);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      padding: 40px;
-      border-radius: 24px;
-      border: 1px solid var(--card-border);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      width: 100%;
-      max-width: 640px;   /* 500 left the longest tab name 26px short, and the
-                           install URL clipped in its field; this clears both
-                           with room to spare and still reads as a form. */
-      position: relative;
-    }
+    /* ---- sports ------------------------------------------------------ */
+    #sportsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: var(--s2); }
 
-    /* The secondary of the two stacked buttons. It used to be an inline
-       background override, which left it wearing the accent-blue drop shadow
-       .btn casts -- a grey button under a blue halo -- and an inline font-size
-       that made its label smaller than the one directly above it. */
-    .btn.secondary {
-      background: #24242a;
-      border: 1px solid #34343c;
-      box-shadow: none;
-      margin-top: 12px;
+    /* ---- sources ----------------------------------------------------- */
+    /* The ROW is the selected object, not the label inside it. When only the
+       label carried the state the blue stopped halfway across, with the drag
+       handle beside it left looking like part of something else. */
+    #sourcesGrid { display: flex; flex-direction: column; gap: var(--s2); }
+    .source-row {
+      display: flex; align-items: center; gap: var(--s2); padding-right: var(--s3);
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+      transition: background var(--d-hover) ease, border-color var(--d-hover) ease;
     }
-    .btn.secondary:hover { background: #2f2f37; }
-
-    /* Pencil sits in the h1, which paints its text transparent to show a
-       gradient through it -- so this needs its own fill or the icon vanishes. */
-    .pencil-btn {
-      -webkit-text-fill-color: currentColor;
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 34px; height: 34px; flex: 0 0 auto;
-      background: rgba(255, 255, 255, .06); color: var(--text-muted);
-      border: 1px solid var(--card-border); border-radius: 10px; cursor: pointer;
-      transition: background .15s, color .15s;
+    .source-row:has(input:checked) { background: var(--accent-wash); border-color: var(--line-focus); }
+    .source-row .checkbox-label {
+      flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s3);
+      padding: var(--s3) 0; cursor: pointer; user-select: none;
     }
-    .pencil-btn:hover { background: rgba(255, 255, 255, .12); color: #fff; }
-
-    .build-line {
-      margin: 2px 0 10px; font-size: 12px; color: var(--text-muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      display: flex; gap: 8px; justify-content: center; align-items: center;
-    }
-    .build-line #buildId { opacity: .75; }
-
-    .modal { border: 0; padding: 0; background: transparent; max-width: 520px; width: calc(100% - 32px); }
-    .modal::backdrop { background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px); }
-    .modal-body {
-      background: #16161a; border: 1px solid var(--card-border);
-      border-radius: 18px; padding: 24px; text-align: left;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
-    }
-    .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .modal-head h3 { margin: 0; }
-    .modal-x {
-      width: 34px; height: 34px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-      background: none; border: 0; color: var(--text-muted); border-radius: 8px; cursor: pointer;
-    }
-    .modal-x:hover { color: #fff; background: rgba(255, 255, 255, .08); }
-    .modal .input-group .hint { margin: 6px 0 0; }
-    .modal textarea {
-      width: 100%; padding: 14px 16px; background: rgba(0, 0, 0, .2);
-      border: 1px solid var(--card-border); border-radius: 12px; color: #fff;
-      font: inherit; font-size: 14px; resize: vertical; outline: none;
-    }
-    .modal textarea:focus { border-color: #3a3a44; }
-    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
-    .modal-actions .btn { margin-top: 0; }
-
-    /* A URL is for copying, not for reading aloud. Field plus a button, the way
-       every other tool that hands you one does it. */
-    .copy-row { display: flex; gap: 8px; align-items: stretch; }
-    /* Out-specifies the generic input[type="text"] further down, which is an
-       equal-specificity selector that would otherwise win on source order and
-       put a URL back into the body font. */
-    .copy-row input[type="text"] {
-      flex: 1; min-width: 0; width: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 13px; padding: 12px 14px; border-radius: 12px;
-      background: rgba(0, 0, 0, 0.25); color: #e8e8ea;
-      border: 1px solid var(--card-border); outline: none;
-    }
-    .copy-row input[type="text"]:focus { border-color: #3a3a44; }
-    .copy-row select {
-      flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 12px 14px;
-      border-radius: 12px; background: rgba(0, 0, 0, .25); color: #e8e8ea;
-      border: 1px solid var(--card-border); outline: none; cursor: pointer;
-    }
-    .copy-btn {
-      flex: 0 0 auto; width: 46px; display: flex; align-items: center; justify-content: center;
-      background: rgba(255, 255, 255, 0.06); color: #c9ced4;
-      border: 1px solid var(--card-border); border-radius: 12px; cursor: pointer;
-      transition: background .15s, color .15s, border-color .15s;
-    }
-    .copy-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
-    .copy-btn.done { background: #10b981; border-color: #10b981; color: #fff; }
-
-    /* The only new rule this feature needs; every other control it adds reuses
-       the page's existing vocabulary. */
-    #impDrop {
-      margin-top: 4px; padding: 22px 16px; text-align: center; cursor: pointer;
-      border: 1px dashed #3a3a44; border-radius: 12px; color: #8b8f95;
-      font-size: 13px; line-height: 1.5; background: rgba(0, 0, 0, .15);
-    }
-    #impDrop:hover, #impDrop:focus-visible, #impDrop.over {
-      border-color: var(--accent); color: #fff;
-      background: rgba(22, 104, 255, .08); outline: none;
-    }
-    /* This card wears its title on its own top border rather than inside the
-       body the way the settings cards do. It is a utility box, not another
-       section of settings, and reading as slightly apart from them is the point. */
-    /* The top padding clears the tab, which is taken out of flow: too little and
-       the description slides underneath it. Measured, not guessed -- 46px of tab
-       plus a 16px gap. The margin is what the button above would otherwise not
-       give it, .btn carrying none of its own. */
-    #backupCard { position: relative; margin-top: 24px; padding: 62px 24px 24px; }
-    #backupCard > h3 {
-      position: absolute; top: -1px; left: -1px; margin: 0;
-      padding: 14px 20px; font-size: 13px; letter-spacing: 1.2px; line-height: 1;
-      background: #22222e; color: #fff;
-      border: 1px solid var(--card-border);
-      border-radius: 15px 0 12px 0;
-    }
-    #backupCard > .hint { margin: 0 0 18px; font-size: 13.5px; }
-    .backup-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-    .backup-btn {
-      display: inline-flex; align-items: center; gap: 10px;
-      font: inherit; font-size: 14px; font-weight: 500;
-      padding: 12px 20px; border-radius: 10px; cursor: pointer;
-      background: #2c2c33; color: #e8e8ea; border: 1px solid #3a3a42;
-      transition: background .15s, color .15s, border-color .15s;
-    }
-    .backup-btn:hover { background: #36363f; color: #fff; border-color: #46464f; }
-    .backup-btn:disabled { opacity: .45; cursor: not-allowed; background: #2c2c33; color: #e8e8ea; }
-    .backup-btn svg { flex: 0 0 auto; }
-
-    #expFields { max-height: 220px; overflow-y: auto; }
-    #expFields div, #impPreview div, #impWarn div { margin: 2px 0; }
-    #impWarn { margin-top: 10px; }
-
-    .callout {
-      margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
-      background: rgba(22, 104, 255, .08); border: 1px solid rgba(22, 104, 255, .22); color: #c9ced4;
-    }
-    .callout.warn { background: rgba(245, 158, 11, .09); border-color: rgba(245, 158, 11, .3); }
-    .callout strong { color: #fff; }
-
-    .footer-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .footer-link {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      /* A grid item will not shrink below its own content unless told to:
-         min-width defaults to auto. These two sat in 134px columns, refused to
-         go under 172px, and overlapped each other by 28px -- which is the
-         button that appeared to spill over its neighbour. */
-      min-width: 0;
-      min-height: 46px;
-      padding: 12px 16px;
-      border-radius: 30px;
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 14px;
-      background: rgba(255, 255, 255, 0.08);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      transition: background 0.2s, border-color 0.2s;
-    }
-
-    .footer-link svg { flex: none; }
-    .footer-link:hover { background: rgba(255, 255, 255, 0.14); }
-
-    .footer-link.kofi {
-      background: var(--accent);
-      border-color: var(--accent);
-    }
-    .footer-link.kofi:hover { background: #2f7bff; }
-
-    @media (max-width: 600px) {
-      body { padding: 10px; }
-      .container { padding: 20px; border-radius: 16px; }
-      h1 { font-size: 24px; }
-      .sports-grid { grid-template-columns: 1fr !important; }
-      .footer-actions { grid-template-columns: 1fr; }
-    }
-
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-
-    h1 {
-      font-family: 'Outfit', sans-serif;
-      font-weight: 900;
-      margin: 0 0 10px 0;
-      font-size: 32px;
-      background: linear-gradient(135deg, #fff 0%, #aaa 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-    }
-
-    .dot {
-      width: 12px;
-      height: 12px;
-      background: var(--accent);
-      border-radius: 50%;
-      display: inline-block;
-      box-shadow: 0 0 10px var(--accent-glow);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-
-      0%,
-      100% {
-        opacity: 1;
-        transform: scale(1);
-      }
-
-      50% {
-        opacity: 0.5;
-        transform: scale(1.3);
-      }
-    }
-
-    p.subtitle {
-      color: var(--text-muted);
-      font-size: 15px;
-      margin: 0;
-    }
-
-    .section {
-      background: var(--glass);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 24px;
-    }
-
-    h3 {
-      margin: 0 0 16px 0;
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: #fff;
-    }
-
-    .sports-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-
-    .hint { color: #8b8f95; font-size: 12px; margin: 0 0 10px; line-height: 1.45; }
-    .source-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .source-row .checkbox-label { flex: 1; margin: 0; }
-    .reorder { display: flex; flex-direction: column; gap: 2px; }
-    .reorder button {
-      background: #2a2a2e; color: #c9ced4; border: 1px solid #3a3a40; border-radius: 4px;
-      width: 26px; height: 17px; line-height: 1; font-size: 9px; cursor: pointer; padding: 0;
-    }
-    .reorder button:hover { background: #3a3a42; color: #fff; }
-    .reorder button:disabled { opacity: 0.3; cursor: default; }
-    /* Drag handle. Grab area is generous because the usual device here is a
-       phone, where a 17px target is a coin toss. */
+    /* Legible before it is touched: the usual device here is a phone, where
+       hover is the one state that never arrives. */
     .grip {
-      flex: 0 0 auto; width: 34px; height: 38px; display: flex; align-items: center;
-      justify-content: center; cursor: grab; color: #7d828a; touch-action: none;
-      user-select: none; -webkit-user-select: none; border-radius: 8px;
+      flex: none; display: grid; place-items: center; width: 2.25rem; height: 2.75rem;
+      color: var(--text-dim); cursor: grab; border-radius: var(--r-sm);
+      touch-action: none; user-select: none; -webkit-user-select: none;
     }
-    .grip:hover { color: #c9ced4; background: rgba(255,255,255,.05); }
     .grip:active { cursor: grabbing; }
     .grip svg { pointer-events: none; }
+    @media (hover: hover) and (pointer: fine) { .grip:hover { color: var(--text); } }
+    /* Lightness and a shadow, not opacity: a half-transparent row shows the one
+       underneath it through the thing being moved. */
     .row-dragging {
-      opacity: .92; background: #26262c; border-radius: 10px;
-      box-shadow: 0 10px 24px rgba(0,0,0,.45); position: relative; z-index: 5;
+      position: relative; z-index: 1;
+      background: var(--surface-raised); border-color: var(--line-strong); box-shadow: var(--shadow-popover);
     }
-    .drop-marker { outline: 2px dashed rgba(22,104,255,.55); outline-offset: 2px; border-radius: 10px; }
-    .cat-row { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
-    /* Tight horizontal padding on purpose. Five controls share this row and the
-       name is the only one that gives -- at 375px it was down to 71px of text,
-       enough to render "Upcoming" as "Upcomin". Every pixel taken off the
-       padding here goes straight back to the label. */
+
+    /* ---- catalog rows ------------------------------------------------ */
+    #catalogList { display: flex; flex-direction: column; gap: var(--s2); }
+    /* Wrapping is the point. Nine controls share this row; at 375px the six
+       action buttons take a second line and give the name field back the width
+       it was starving for (it was down to 71px of text). */
+    .cat-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1);
+      padding: var(--s1) var(--s2);
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+      transition: background var(--d-hover) ease, border-color var(--d-hover) ease;
+    }
+    .cat-item.selected .cat-row { background: var(--accent-wash); border-color: var(--line-focus); }
     .cat-row .cat-name {
-      flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 9px 8px;
-      background: #1f1f24; color: #e8e8ea; border: 1px solid #3a3a40; border-radius: 10px;
-      text-overflow: ellipsis;
+      flex: 1 1 9rem; width: auto; min-width: 0;
+      padding: var(--s2) var(--s3); font: var(--t-small); text-overflow: ellipsis;
     }
-    .cat-row .cat-name:focus { outline: none; border-color: #5a5a64; }
-    .cat-row .cat-default { font-size: 11px; color: #7d828a; min-width: 74px; text-align: right; }
-    .cat-item { margin-bottom: 6px; }
-    .cat-expand {
-      flex: 0 0 auto; width: 34px; height: 38px; display: flex; align-items: center;
-      justify-content: center; background: none; border: 0; color: #7d828a; cursor: pointer;
-      font-size: 12px; border-radius: 8px;
+    /* Colour, not opacity: .45 over this surface lands under 4.5:1. */
+    .cat-item.is-hidden .cat-name { color: var(--text-faint); text-decoration: line-through; }
+    .icon-btn.on { color: var(--ok); }
+    .icon-btn.home.on, .icon-btn.search.on, .icon-btn.shuffle.on { color: var(--accent-text); }
+
+    .cat-selectall { display: flex; align-items: center; gap: var(--s3); font: var(--t-small); color: var(--text-dim); }
+    .cbx {
+      flex: none; position: relative; width: 1.5rem; height: 1.5rem; padding: 0; cursor: pointer;
+      background: var(--surface-sunk); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+      transition: background var(--d-hover) ease, border-color var(--d-hover) ease;
     }
-    .cat-expand:hover { color: #fff; background: rgba(255,255,255,.05); }
-    .cat-expand[aria-expanded="true"] { color: var(--accent, #1668ff); transform: rotate(180deg); }
-    .cat-opts {
-      margin: 2px 0 10px 34px; padding: 10px 12px; border-radius: 10px;
-      background: rgba(255,255,255,.03); border: 1px solid #2c2c33;
+    .cbx[aria-checked="true"], .cbx[aria-checked="mixed"] { background: var(--accent); border-color: var(--accent); }
+    /* Drawn, not typed. A glyph is a font the machine has to have. The pixel
+       numbers are the geometry of a tick; there is no token for a shape. */
+    .cbx[aria-checked="true"]::after, .cbx[aria-checked="mixed"]::after {
+      content: ''; position: absolute; inset: 0; margin: auto;
+      border-color: var(--text); border-style: solid;
     }
-    .opt { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
-    .opt-text { flex: 1; min-width: 0; }
-    .opt-text b { display: block; font-size: 13.5px; font-weight: 600; color: #e8e8ea; }
-    .opt-text span { font-size: 11.5px; color: #8b8f95; line-height: 1.35; }
-    /* iOS-style switch, to match what the rest of these settings look like. */
-    .sw { flex: 0 0 auto; width: 44px; height: 25px; border-radius: 999px; background: #3a3a42;
-          border: 0; cursor: pointer; position: relative; transition: background .18s; padding: 0; }
-    .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 19px; height: 19px;
-                 border-radius: 50%; background: #fff; transition: transform .18s; }
-    .sw[aria-checked="true"] { background: var(--accent); }
-    .sw[aria-checked="true"]::after { transform: translateX(19px); }
-    .opt input[type="number"] {
-      width: 84px; font: inherit; font-size: 14px; padding: 7px 10px; background: #1f1f24;
-      color: #e8e8ea; border: 1px solid #3a3a40; border-radius: 8px;
+    .cbx[aria-checked="true"]::after {
+      width: 0.3125rem; height: 0.625rem; border-width: 0 2px 2px 0;
+      transform: translateY(-1px) rotate(45deg);
     }
-    /* --- catalog management ------------------------------------------------ */
-    .cat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px;
-                  font-size: 12px; color: #8b8f95; }
-    .cat-legend span { display: inline-flex; align-items: center; gap: 6px; }
-    .chip { font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
-            background: #24242a; color: #c9ced4; border: 1px solid #34343c; }
-    .chip:hover { background: #2f2f37; color: #fff; }
-    .chip:disabled { opacity: .45; cursor: not-allowed; }
-    .chip:disabled:hover { background: #24242a; color: #c9ced4; }
-    .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .chip.primary { background: #fff; color: #16161a; border-color: #fff; font-weight: 650; }
-    .cat-selectall { display: flex; align-items: center; gap: 10px; font-size: 13px;
-                     color: #c9ced4; margin-bottom: 10px; }
-    .cbx { width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid #4a4a52;
-           background: #1c1c21; cursor: pointer; padding: 0; position: relative; flex: 0 0 auto; }
-    .cbx[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
-    .cbx[aria-checked="true"]::after,
-    .cbx[aria-checked="mixed"]::after {
-      content: ''; position: absolute; left: 6px; top: 2px; width: 6px; height: 11px;
-      border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+    .cbx[aria-checked="mixed"]::after { width: 0.625rem; height: 0; border-width: 0 0 2px; }
+
+    .cat-bulk {
+      position: sticky; bottom: var(--s2); z-index: 1;
+      display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3);
+      padding: var(--s3); font: var(--t-small);
+      background: var(--surface-raised); border: 1px solid var(--line-strong);
+      border-radius: var(--r-md); box-shadow: var(--shadow-popover);
     }
-    .cbx[aria-checked="mixed"] { background: var(--accent); border-color: var(--accent); }
-    .cbx[aria-checked="mixed"]::after { top: 9px; left: 4px; width: 11px; height: 0; transform: none; border-width: 0 0 2px 0; }
-    .cat-item.selected .cat-row { background: rgba(22,104,255,.12); border-color: var(--accent); }
-    .cat-item.is-hidden .cat-name { opacity: .45; text-decoration: line-through; }
-    .cat-row { border: 1px solid transparent; border-radius: 12px; padding: 4px 6px; }
-    .icon-btn { flex: 0 0 auto; width: 32px; height: 34px; display: flex; align-items: center;
-                justify-content: center; background: none; border: 0; color: #8b8f95; cursor: pointer;
-                border-radius: 8px; font-size: 14px; }
-    .icon-btn:hover { color: #fff; background: rgba(255,255,255,.06); }
-    .icon-btn.on { color: #3fb950; }
-    .icon-btn.home.on, .icon-btn.shuffle.on, .icon-btn.search.on { color: var(--accent); }
-    .cat-menu { position: absolute; z-index: 40; min-width: 200px; background: #1b1b20;
-                border: 1px solid #33333b; border-radius: 12px; padding: 6px;
-                box-shadow: 0 18px 40px rgba(0,0,0,.55); }
-    .cat-menu button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-                       background: none; border: 0; color: #e8e8ea; font: inherit; font-size: 13.5px;
-                       padding: 9px 10px; border-radius: 8px; cursor: pointer; }
-    .cat-menu button:hover { background: rgba(255,255,255,.07); }
-    .cat-menu .sep { height: 1px; background: #2c2c33; margin: 5px 4px; }
-    .cat-menu .state { margin-left: auto; font-size: 11px; color: #8b8f95; }
-    .cat-bulk { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center;
-                gap: 10px; margin-top: 12px; padding: 12px; border-radius: 14px;
-                background: #17171c; border: 1px solid #2f2f37; font-size: 13px; color: #c9ced4; }
-    .cat-bulk-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-    .toggle-row { display: flex; gap: 8px; align-items: stretch; }
-    .toggle {
-      /* flex-basis 0 so the pair divides the row evenly whatever the labels say:
-         with basis auto, "Direct streams first" claimed more room than "Web
-         streams first" and the two ended up different widths. Centred on both
-         axes and equal height, so a label that wraps to two lines does not
-         leave its partner floating. */
-      flex: 1 1 0; min-width: 0; background: #1e1e22; color: #c9ced4; border: 1px solid #3a3a40;
-      border-radius: 10px; padding: 12px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 7px;
-      text-align: center; min-height: 52px; line-height: 1.3;
+    .cat-bulk-actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+
+    /* ---- copy rows --------------------------------------------------- */
+    .copy-row { display: flex; align-items: stretch; gap: var(--s2); max-width: var(--measure); }
+    .copy-row input[type="text"], .copy-row select { flex: 1; min-width: 0; width: auto; }
+    /* A URL is for copying, not for reading aloud. */
+    .copy-row input[type="text"], #editLink { font: var(--t-small); font-family: var(--font-mono); }
+    .copy-btn { width: 2.75rem; height: auto; background: var(--surface-raised); border-color: var(--line-strong); }
+    .copy-btn:disabled { cursor: not-allowed; }
+    .copy-btn.done { background: var(--ok-wash); border-color: var(--ok); color: var(--ok); }
+
+    /* ---- feedback ---------------------------------------------------- */
+    /* The script writes className = 'callout warn' in nine places, so that pair
+       has to mean something here. */
+    .callout.warn { border-left-color: var(--warn); background: var(--warn-wash); }
+    .callout strong { color: var(--text); }
+    /* These hold a list of lines rather than an icon beside a sentence. */
+    #saveCallout, #backupCallout, #expFields, #impError, #impPreview, #impWarn { display: block; }
+    #expFields > div, #impPreview > div, #impWarn > div { margin: var(--s1) 0; }
+    #expFields { max-height: 14rem; overflow-y: auto; }
+    .chip[aria-pressed="true"] { background: var(--accent-wash); border-color: var(--line-focus); color: var(--text); }
+
+    /* ---- dialogs ----------------------------------------------------- */
+    /* margin:auto restores the centring a stack margin would otherwise take. */
+    dialog { margin: auto; width: calc(100% - var(--s5)); max-width: 34rem; max-height: calc(100dvh - var(--s6)); }
+    .modal-body { padding: var(--s5); }
+    .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin-top: var(--s5); }
+
+    #impDrop {
+      padding: var(--s5) var(--s4); text-align: center; cursor: pointer; font: var(--t-small);
+      background: var(--surface-sunk); color: var(--text-dim);
+      border: 1px dashed var(--line-strong); border-radius: var(--r-md);
+      transition: background var(--d-hover) ease, border-color var(--d-hover) ease, color var(--d-hover) ease;
     }
-    .toggle:hover { background: #26262c; }
-    .toggle.active { background: #1668ff; border-color: #1668ff; color: #fff; }
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid transparent;
-      transition: all 0.2s;
+    #impDrop.over { background: var(--accent-wash); border-color: var(--line-focus); color: var(--text); }
+    @media (hover: hover) and (pointer: fine) {
+      #impDrop:hover { border-color: var(--line-focus); color: var(--text); }
     }
 
-    .checkbox-label:hover {
-      background: rgba(255, 255, 255, 0.06);
-    }
+    /* ---- footer ------------------------------------------------------ */
+    .footer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 
-    .checkbox-label.active {
-      border-color: rgba(22, 104, 255, 0.3);
-      background: rgba(22, 104, 255, 0.1);
-    }
-
-    input[type="checkbox"] {
-      appearance: none;
-      width: 18px;
-      height: 18px;
-      border: 2px solid #555;
-      border-radius: 4px;
-      outline: none;
-      cursor: pointer;
-      position: relative;
-      transition: all 0.2s;
-    }
-
-    input[type="checkbox"]:checked {
-      background: var(--accent);
-      border-color: var(--accent);
-    }
-
-    input[type="checkbox"]:checked::after {
-      content: '✓';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      font-size: 12px;
-      font-weight: bold;
-    }
-
-    .input-group {
-      margin-top: 16px;
-    }
-
-    .input-group label {
-      display: block;
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-
-    input[type="text"] {
-      width: 100%;
-      padding: 14px 16px;
-      background: rgba(0, 0, 0, 0.2);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      color: #fff;
-      font-size: 15px;
-      box-sizing: border-box;
-      font-family: 'Inter', sans-serif;
-      transition: all 0.2s;
-    }
-
-    input[type="text"]:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(22, 104, 255, 0.15);
-    }
-
-    .btn {
-      display: block;
-      width: 100%;
-      padding: 16px;
-      background: var(--accent);
-      color: #fff;
-      text-align: center;
-      border: none;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 800;
-      cursor: pointer;
-      text-decoration: none;
-      box-shadow: 0 4px 14px rgba(22, 104, 255, 0.4);
-      transition: all 0.3s;
-      font-family: 'Outfit', sans-serif;
-      letter-spacing: 1px;
-    }
-
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(22, 104, 255, 0.6);
-    }
-
-    .btn:active {
-      transform: translateY(1px);
-    }
-    /* Last, so it out-orders .btn.secondary at the same specificity. A button
-       that is disabled but looks pressable is a button people press and then
-       assume is broken -- and this page had no such style at all, so SAVING…
-       looked live too. */
-    .btn:disabled {
-      opacity: .45; cursor: not-allowed; transform: none;
-      filter: grayscale(.35);
+    @media (max-width: 40rem) {
+      details.card > summary { padding: var(--s4); border-radius: var(--r-md); }
+      .disclosure { padding: 0 var(--s4) var(--s4); }
+      .footer-actions { grid-template-columns: 1fr; }
+      /* One phone line cannot hold nine controls. A basis wide enough to leave
+         no room for a single button puts the tick, the handle and the name on
+         the first line and the six actions, evenly spread, on the second --
+         rather than breaking the run of buttons wherever it happens to land. */
+      .cat-row .cat-name { flex-basis: calc(100% - 5rem); }
+      .cat-row .icon-btn { flex: 1 1 auto; }
     }
   </style>
 </head>
 
 <body>
-  <div class="container">
-    <div class="header">
-      <img id="addonLogoImg" src="/logo-v2.png" alt="" style="width: 88px; height: 88px; border-radius: 20px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(22, 104, 255, 0.4); border: 2px solid rgba(255, 255, 255, 0.15); object-fit: cover;">
-      <h1>
-        <span class="dot"></span><span id="addonName">AIOSports</span>
-        <button type="button" id="editAddonBtn" class="pencil-btn" title="Customize addon" aria-label="Customize addon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-          </svg>
-        </button>
-      </h1>
-      <p class="build-line"><span id="addonVersion"></span><span id="buildId"></span></p>
-      <p class="subtitle" id="addonSubtitle">Choose your sports, sources and teams.</p>
-
-      <!-- A real <dialog>: Escape closes it, focus is trapped, and the backdrop
-           is the browser's rather than a div pretending to be one. -->
-      <dialog id="addonDialog" class="modal">
-        <form method="dialog" class="modal-body">
-          <div class="modal-head">
-            <h3>Customize Addon</h3>
-            <button type="submit" value="cancel" class="modal-x" aria-label="Close">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                   stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
-
-          <div class="input-group">
-            <label for="dlgName">Addon Name</label>
-            <input type="text" id="dlgName" maxlength="40" spellcheck="false" autocomplete="off">
-            <p class="hint">Shown wherever the addon is installed.</p>
-          </div>
-
-          <div class="input-group">
-            <label for="dlgLogo">Logo URL</label>
-            <input type="text" id="dlgLogo" spellcheck="false" autocomplete="off"
-                   placeholder="Leave blank for the default logo">
-            <p class="hint">Must be a full https:// address your player can reach.</p>
-          </div>
-
-          <div class="input-group">
-            <label for="dlgDesc">Addon Description</label>
-            <textarea id="dlgDesc" rows="4" maxlength="300" spellcheck="false"></textarea>
-            <p class="hint">Shown under the name in your player's addon list.</p>
-          </div>
-
-          <div class="modal-actions">
-            <button type="submit" value="cancel" class="btn secondary" id="dlgCancel">Cancel</button>
-            <button type="submit" value="save" class="btn" id="dlgSave">Save Changes</button>
-          </div>
-        </form>
-      </dialog>
+  <!-- The one action most people came for, kept on screen the whole way down.
+       It was two thirds of the way down this page, under the save card. -->
+  <header class="appbar">
+    <div class="appbar__inner">
+      <span class="wordmark">AIOSports</span>
+      <span class="caption">Setup</span>
+      <span class="spacer"></span>
+      <a href="#" id="installBtn" class="btn btn--primary">INSTALL ADDON</a>
     </div>
+  </header>
 
-    <div class="section">
-      <h3>Select Sports</h3>
-      <div class="sports-grid" id="sportsGrid">
-        <label class="checkbox-label active"><input type="checkbox" value="football" checked> ⚽ Soccer</label>
-        <label class="checkbox-label active"><input type="checkbox" value="basketball" checked> 🏀 Basketball</label>
-        <label class="checkbox-label active"><input type="checkbox" value="cricket" checked> 🏏 Cricket</label>
-        <label class="checkbox-label active"><input type="checkbox" value="american_football" checked> 🏈 Football</label>
-        <label class="checkbox-label active"><input type="checkbox" value="motorsport" checked> 🏎️ Racing</label>
-        <label class="checkbox-label active"><input type="checkbox" value="hockey" checked> 🏒 Hockey</label>
-        <label class="checkbox-label active"><input type="checkbox" value="baseball" checked> ⚾ Baseball</label>
-        <label class="checkbox-label active"><input type="checkbox" value="rugby" checked> 🏉 Rugby</label>
-        <label class="checkbox-label active"><input type="checkbox" value="college" checked> 🎓 College</label>
-        <label class="checkbox-label active"><input type="checkbox" value="mma" checked> 🥊 MMA</label>
-        <label class="checkbox-label active"><input type="checkbox" value="golf" checked> ⛳ Golf</label>
-        <label class="checkbox-label active"><input type="checkbox" value="tennis" checked> 🎾 Tennis</label>
-        <label class="checkbox-label active"><input type="checkbox" value="darts" checked> 🎯 Darts</label>
-        <label class="checkbox-label active"><input type="checkbox" value="other" checked> 📡 Other Sports</label>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>Localization</h3>
-      <div class="input-group">
-        <label>Select your local timezone (Match times will be displayed in this timezone)</label>
-        <select id="timezone" style="width: 100%; padding: 14px 16px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--card-border); border-radius: 12px; color: #fff; font-size: 15px; box-sizing: border-box; font-family: 'Inter', sans-serif; transition: all 0.2s; outline: none; cursor: pointer;">
-        </select>
-      </div>
-      <div class="input-group" style="margin-bottom: 0;">
-        <label>Clock format for those times</label>
-        <div class="toggle-row" id="timeFormat">
-          <button type="button" class="toggle active" data-value="12">12-hour</button>
-          <button type="button" class="toggle" data-value="24">24-hour</button>
+  <main class="page stack-lg">
+    <div class="hero">
+      <img id="addonLogoImg" class="hero__logo" src="/logo-v2.png" alt="">
+      <div class="hero__text">
+        <div class="hero__title">
+          <span class="dot" aria-hidden="true"></span>
+          <h1><span id="addonName">AIOSports</span></h1>
+          <button type="button" id="editAddonBtn" class="icon-btn" title="Customize addon" aria-label="Customize addon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+          </button>
         </div>
-        <p class="hint" id="timeFormatPreview" style="margin: 8px 0 0;"></p>
+        <p class="mono build-line"><span id="addonVersion"></span><span id="buildId"></span></p>
+        <p class="hint" id="addonSubtitle">Choose your sports, sources and teams.</p>
       </div>
     </div>
 
-    <div class="section">
-      <h3>Priority Tracking</h3>
-      <div class="input-group">
-        <label>Favorite Teams (Comma Separated)</label>
-        <input type="text" id="teams" placeholder="e.g. Arsenal, Lakers, Ferrari">
+    <nav class="chiprow" aria-label="Jump to a section">
+      <a class="chip" href="#sec-sports">Sports</a>
+      <a class="chip" href="#sec-you">Teams &amp; time</a>
+      <a class="chip" href="#sec-sources">Sources</a>
+      <a class="chip" href="#sec-tabs">Tabs</a>
+      <a class="chip" href="#sec-streams">Streams</a>
+      <a class="chip" href="#backupCard">Backups</a>
+    </nav>
+
+    <section class="card sec stack" aria-labelledby="installHead">
+      <div class="head">
+        <h2 id="installHead">Install</h2>
+        <span class="section__hint">Stremio, Nuvio and anything else that reads a manifest</span>
       </div>
-      <div class="input-group">
-        <label>Local Channels: Your Cities (Comma Separated)</label>
-        <input type="text" id="markets" placeholder="e.g. Chicago, Knoxville TN, Phoenix">
+      <p class="hint">Everything you change below is written into the link, so install once you have
+        set things up. Saving a profile further down stops the address changing at all.</p>
+      <button id="copyBtn" class="btn btn--secondary">COPY LINK FOR NUVIO</button>
+      <p class="hint">Nuvio and the other players take the link pasted in rather than handed over.</p>
+    </section>
+
+    <section class="card sec stack" id="sec-sports" aria-labelledby="sportsHead">
+      <div class="head">
+        <h2 id="sportsHead">Sports</h2>
+        <span class="section__hint">A sport switched off loses its tab as well as its matches</span>
       </div>
-    </div>
-
-    <div class="section">
-      <h3>Streaming Sources</h3>
-      <p class="hint">Tick the sources to use, and drag the handles to reorder them — the ones nearer the top are tried first.</p>
-      <div id="sourcesGrid">
-        <div class="source-row" data-value="streamfree"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamfree" checked> 🌐 StreamFree</label></div>
-        <div class="source-row" data-value="timstreams"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="timstreams" checked> 📺 TimStreams</label></div>
-        <div class="source-row" data-value="streamedpk"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamedpk" checked> 📺 Streamed.pk</label></div>
-        <div class="source-row" data-value="sportyhunter"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="sportyhunter" checked> 📺 SportyHunter</label></div>
-        <div class="source-row" data-value="watchfooty"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="watchfooty" checked> 📺 WatchFooty</label></div>
-        <div class="source-row" data-value="cdnlive"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="cdnlive" checked> 📺 CDNLiveTV</label></div>
-        <div class="source-row" data-value="streamsports99"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamsports99" checked> 📺 StreamSports99</label></div>
-        <div class="source-row" data-value="streamic"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamic" checked> 🌐 Streamic</label></div>
-        <div class="source-row" data-value="totalsportek"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="totalsportek" checked> 📺 TotalSportek</label></div>
-        <div class="source-row" data-value="usatv"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="usatv" checked> 📺 USA TV</label></div>
-        <div class="source-row" data-value="iptv-org"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="iptv-org" checked> 📡 iptv-org</label></div>
+      <div class="sports-grid" id="sportsGrid" role="group" aria-labelledby="sportsHead">
+        <label class="tile checkbox-label active"><input type="checkbox" value="football" checked> Soccer</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="basketball" checked> Basketball</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="cricket" checked> Cricket</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="american_football" checked> Football</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="motorsport" checked> Racing</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="hockey" checked> Hockey</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="baseball" checked> Baseball</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="rugby" checked> Rugby</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="college" checked> College</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="mma" checked> MMA</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="golf" checked> Golf</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="tennis" checked> Tennis</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="darts" checked> Darts</label>
+        <label class="tile checkbox-label active"><input type="checkbox" value="other" checked> Other sports</label>
       </div>
-    </div>
+    </section>
 
-    <div class="section">
-      <h3>Catalog Management</h3>
-      <p class="hint">Drag to reorder and type to rename. The buttons on each row set whether a tab is shown, browsable, and shuffled, and move it to the top or bottom.</p>
-
-      <div class="cat-legend">
-        <button type="button" id="hideDisabled" class="chip" aria-pressed="false">Hide disabled</button>
-        <button type="button" id="catalogReset" class="chip">Reset all</button>
+    <!-- Localization and Priority Tracking were two cards apart. They are four
+         answers about one person: what they follow, where they are, and how a
+         time should read. -->
+    <section class="card sec stack" id="sec-you" aria-labelledby="youHead">
+      <div class="head">
+        <h2 id="youHead">Your teams and time</h2>
+        <span class="section__hint">What gets listed first, and how kickoffs read</span>
       </div>
 
-      <div class="cat-selectall">
-        <button type="button" class="cbx" id="catSelectAll" role="checkbox" aria-checked="false" aria-label="Select all tabs"></button>
-        <span>Select all (<b id="catCount">0</b> tabs)</span>
+      <div class="field">
+        <label class="field__label" for="teams">Favourite teams</label>
+        <input type="text" id="teams" placeholder="Arsenal, Lakers, Ferrari">
+        <span class="field__hint">Comma separated. Naming one adds a My Teams tab.</span>
       </div>
 
-      <div id="catalogList"><p class="hint" id="catalogLoading">Loading tabs…</p></div>
+      <div class="field">
+        <label class="field__label" for="markets">Your cities</label>
+        <input type="text" id="markets" placeholder="Chicago, Knoxville TN, Phoenix">
+        <span class="field__hint">Comma separated. Naming one adds a Local tab of that city's channels.</span>
+      </div>
 
-      <div id="catBulk" class="cat-bulk" hidden>
-        <span><b id="catBulkCount">0</b> selected</span>
-        <div class="cat-bulk-actions">
-          <button type="button" class="chip" data-bulk="show">Show</button>
-          <button type="button" class="chip" data-bulk="hide">Hide</button>
-          <button type="button" class="chip" data-bulk="noHome">Off home board</button>
-          <button type="button" class="chip" data-bulk="searchOnly">Search only</button>
-          <button type="button" class="chip" data-bulk="noSearch">No search</button>
-          <button type="button" class="chip" data-bulk="shuffle">Shuffle</button>
-          <button type="button" class="chip" data-bulk="reverse">Reverse</button>
-          <button type="button" class="chip" data-bulk="top">To top</button>
-          <button type="button" class="chip" data-bulk="bottom">To bottom</button>
-          <button type="button" class="chip" data-bulk="reset">Reset these</button>
-          <button type="button" class="chip" data-bulk="clear">Clear</button>
+      <div class="field">
+        <label class="field__label" for="timezone">Time zone</label>
+        <select id="timezone"></select>
+        <span class="field__hint">Every match time on every card is written in this zone.</span>
+      </div>
+
+      <div class="field">
+        <span class="field__label" id="timeFormatLabel">Clock</span>
+        <div class="segmented" id="timeFormat" role="group" aria-labelledby="timeFormatLabel">
+          <button type="button" class="toggle segmented__option active" data-value="12">12-hour</button>
+          <button type="button" class="toggle segmented__option" data-value="24">24-hour</button>
+        </div>
+        <span class="field__hint" id="timeFormatPreview" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <details class="card sec" id="sec-sources">
+      <summary>
+        <h2>Streaming sources</h2>
+        <span class="section__hint">Which sites are searched, and in what order</span>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </summary>
+      <div class="disclosure stack">
+        <p class="hint">Tried from the top down.</p>
+        <div id="sourcesGrid">
+          <div class="source-row" data-value="streamfree"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamfree" checked> StreamFree</label></div>
+          <div class="source-row" data-value="timstreams"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="timstreams" checked> TimStreams</label></div>
+          <div class="source-row" data-value="streamedpk"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamedpk" checked> Streamed.pk</label></div>
+          <div class="source-row" data-value="sportyhunter"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="sportyhunter" checked> SportyHunter</label></div>
+          <div class="source-row" data-value="watchfooty"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="watchfooty" checked> WatchFooty</label></div>
+          <div class="source-row" data-value="cdnlive"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="cdnlive" checked> CDNLiveTV</label></div>
+          <div class="source-row" data-value="streamsports99"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamsports99" checked> StreamSports99</label></div>
+          <div class="source-row" data-value="streamic"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="streamic" checked> Streamic</label></div>
+          <div class="source-row" data-value="totalsportek"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="totalsportek" checked> TotalSportek</label></div>
+          <div class="source-row" data-value="usatv"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="usatv" checked> USA TV</label></div>
+          <div class="source-row" data-value="iptv-org"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="2" y="3.25" width="12" height="1.6" rx=".8"/><rect x="2" y="7.2"  width="12" height="1.6" rx=".8"/><rect x="2" y="11.15" width="12" height="1.6" rx=".8"/></svg></span><label class="checkbox-label active"><input type="checkbox" value="iptv-org" checked> iptv-org</label></div>
         </div>
       </div>
-    </div>
+    </details>
 
+    <details class="card sec" id="sec-tabs">
+      <summary>
+        <h2>Tabs in your player</h2>
+        <span class="section__hint">Rename, reorder, hide</span>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </summary>
+      <div class="disclosure stack">
+        <p class="hint">Drag to reorder, type to rename. The buttons on each row are, in that order:
+          shown, on the home board, searchable, shuffled, move to top, move to bottom.</p>
 
-    <div class="section">
-      <h3>Sort Streams By</h3>
-      <p class="hint">Rating ranks every stream on what was measured about it — the resolution and bitrate read from the stream itself, and whether that source has been answering lately. Source order hands you your own order from above instead, best stream first within each source. Dragging your sources into an order selects this on its own:</p>
-      <div class="toggle-row" id="sortBy">
-        <button type="button" class="toggle" data-value="rating">⭐ Rating</button>
-        <button type="button" class="toggle" data-value="source">🎚️ Source order</button>
+        <div class="chiprow">
+          <button type="button" id="hideDisabled" class="chip" aria-pressed="false">Hide disabled</button>
+          <button type="button" id="catalogReset" class="chip">Reset all</button>
+        </div>
+
+        <div class="cat-selectall">
+          <button type="button" class="cbx" id="catSelectAll" role="checkbox" aria-checked="false" aria-label="Select all tabs"></button>
+          <span>Select all (<b class="num" id="catCount">0</b> tabs)</span>
+        </div>
+
+        <div id="catalogList"><p class="hint" id="catalogLoading">Loading tabs…</p></div>
+
+        <div id="catBulk" class="cat-bulk pop-in" hidden aria-live="polite">
+          <span><b class="num" id="catBulkCount">0</b> selected</span>
+          <div class="cat-bulk-actions">
+            <button type="button" class="chip" data-bulk="show">Show</button>
+            <button type="button" class="chip" data-bulk="hide">Hide</button>
+            <button type="button" class="chip" data-bulk="noHome">Off home board</button>
+            <button type="button" class="chip" data-bulk="searchOnly">Search only</button>
+            <button type="button" class="chip" data-bulk="noSearch">No search</button>
+            <button type="button" class="chip" data-bulk="shuffle">Shuffle</button>
+            <button type="button" class="chip" data-bulk="reverse">Reverse</button>
+            <button type="button" class="chip" data-bulk="top">To top</button>
+            <button type="button" class="chip" data-bulk="bottom">To bottom</button>
+            <button type="button" class="chip" data-bulk="reset">Reset these</button>
+            <button type="button" class="chip" data-bulk="clear">Clear</button>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div class="section">
-      <h3>Extra Buffer</h3>
-      <p class="hint">A stream that never really breaks but keeps catching itself is usually a source publishing in bursts — eight seconds of nothing, then two segments at once. Starting further behind the live edge rides those out, at the cost of seeing everything that much later. Off plays as close to live as the source allows:</p>
-      <div class="toggle-row" id="buffer">
-        <button type="button" class="toggle active" data-value="0">⚡ Off</button>
-        <button type="button" class="toggle" data-value="10">⏳ 10s</button>
-        <button type="button" class="toggle" data-value="20">⏳ 20s</button>
-        <button type="button" class="toggle" data-value="30">⏳ 30s</button>
+    <!-- Sort, buffer and stream order were three cards asking three halves of
+         one question: of everything that plays this match, which comes first. -->
+    <details class="card sec" id="sec-streams">
+      <summary>
+        <h2>How streams are picked</h2>
+        <span class="section__hint">Ranking, kind and how far behind live</span>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </summary>
+      <div class="disclosure">
+        <div class="field">
+          <span class="field__label" id="sortByLabel">Rank them by</span>
+          <div class="segmented" id="sortBy" role="group" aria-labelledby="sortByLabel">
+            <button type="button" class="toggle segmented__option" data-value="rating">Rating</button>
+            <button type="button" class="toggle segmented__option" data-value="source">Source order</button>
+          </div>
+          <span class="field__hint">Rating ranks every stream on what was measured about it — the resolution
+            and bitrate read from the stream itself, and whether that source has been answering lately.
+            Source order hands you your own order from Streaming sources instead, best stream first within
+            each source. Dragging your sources into an order selects it on its own.</span>
+        </div>
+
+        <div class="field">
+          <span class="field__label" id="streamOrderLabel">Show first</span>
+          <div class="segmented" id="streamOrder" role="group" aria-labelledby="streamOrderLabel">
+            <button type="button" class="toggle segmented__option active" data-value="direct">Direct</button>
+            <button type="button" class="toggle segmented__option" data-value="web">Web</button>
+            <button type="button" class="toggle segmented__option" data-value="none">No preference</button>
+          </div>
+          <span class="field__hint">Direct streams play in the app. Web streams open a browser.
+            No preference leaves them ranked on quality alone.</span>
+        </div>
+
+        <div class="field">
+          <span class="field__label" id="bufferLabel">Extra buffer</span>
+          <div class="segmented" id="buffer" role="group" aria-labelledby="bufferLabel">
+            <button type="button" class="toggle segmented__option active" data-value="0">Off</button>
+            <button type="button" class="toggle segmented__option" data-value="10">10s</button>
+            <button type="button" class="toggle segmented__option" data-value="20">20s</button>
+            <button type="button" class="toggle segmented__option" data-value="30">30s</button>
+          </div>
+          <span class="field__hint">A stream that never quite breaks but keeps catching itself is usually a
+            source publishing in bursts. Starting further behind the live edge rides those out, at the cost
+            of seeing everything that much later. Off plays as close to live as the source allows.</span>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div class="section">
-      <h3>Stream Order</h3>
-      <p class="hint">Direct streams play in the app. Web streams open a browser. Select which type of streams should be shown first, or tap the selected one again to clear it and leave them unordered:</p>
-      <div class="toggle-row" id="streamOrder">
-        <button type="button" class="toggle active" data-value="direct">⚡ Direct</button>
-        <button type="button" class="toggle" data-value="web">🌐 Web</button>
+    <section class="card sec stack" id="saveCard" hidden aria-labelledby="saveHead">
+      <div class="head">
+        <h2 id="saveHead">Saving and profiles</h2>
+        <span class="section__hint">One address that survives a change of mind</span>
       </div>
-    </div>
-
-    <div class="section save-card" id="saveCard" hidden>
-      <h3>Your Configuration</h3>
       <p class="hint">Settings normally live inside the addon's link, so changing one means installing
         it again. Save them here instead and this address stays the same.</p>
 
-      <div class="input-group">
-        <label for="profileSelect">Profile</label>
+      <div class="field">
+        <label class="field__label" for="profileSelect">Profile</label>
         <div class="copy-row">
           <select id="profileSelect"></select>
-          <button type="button" id="newProfileBtn" class="copy-btn" title="Start a new profile"
+          <button type="button" id="newProfileBtn" class="icon-btn copy-btn" title="Start a new profile"
                   aria-label="Start a new profile">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" aria-hidden="true">
               <path d="M12 5v14M5 12h14"/></svg>
           </button>
-          <button type="button" id="deleteProfileBtn" class="copy-btn" title="Delete this profile"
+          <button type="button" id="deleteProfileBtn" class="icon-btn copy-btn" title="Delete this profile"
                   aria-label="Delete this profile">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
           </button>
         </div>
-        <p class="hint">Each profile is its own install URL, so two people can keep different settings on one server.</p>
+        <span class="field__hint">Each profile is its own install URL, so two people can keep different
+          settings on one server.</span>
       </div>
 
-      <div class="input-group">
-        <label for="savedUrl">Install URL</label>
+      <div class="field">
+        <label class="field__label" for="savedUrl">Install URL</label>
         <div class="copy-row">
           <input type="text" id="savedUrl" readonly spellcheck="false">
-          <button type="button" id="copySavedUrl" class="copy-btn" title="Copy install URL" aria-label="Copy install URL">
+          <button type="button" id="copySavedUrl" class="icon-btn copy-btn" title="Copy install URL" aria-label="Copy install URL">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -781,27 +498,27 @@
         </div>
       </div>
 
-      <div class="callout" id="saveCallout" hidden></div>
+      <div class="callout" id="saveCallout" hidden aria-live="polite"></div>
 
-      <div class="input-group" id="editLinkNote" style="display: none; margin-top: 16px;">
-        <label for="editLink">Edit link</label>
+      <div class="field" id="editLinkNote" style="display: none">
+        <label class="field__label" for="editLink">Edit link</label>
         <input type="text" id="editLink" readonly spellcheck="false">
-        <p class="hint">Keep this private. This server has no password set, so this link is the only way
-          to change the profile from another device or browser.</p>
+        <span class="field__hint">Keep this private. This server has no password set, so this link is the
+          only way to change the profile from another device or browser.</span>
       </div>
 
-      <button id="saveBtn" class="btn" style="margin-top: 16px;">SAVE CHANGES</button>
-    </div>
+      <div><button id="saveBtn" class="btn btn--primary">SAVE CHANGES</button></div>
+    </section>
 
-    <a href="#" id="installBtn" class="btn">INSTALL ADDON</a>
-    <button id="copyBtn" class="btn secondary">COPY LINK (FOR NUVIO APP)</button>
+    <section class="card sec stack" id="backupCard" aria-labelledby="backupHead">
+      <div class="head">
+        <h2 id="backupHead">Backups</h2>
+        <span class="section__hint">A file you keep, not an address you share</span>
+      </div>
+      <p class="hint">Export these settings to a file, or restore them from one.</p>
 
-    <div class="section" id="backupCard">
-      <h3>Backups</h3>
-      <p class="hint">Export your settings or restore from a backup file</p>
-
-      <div class="backup-actions">
-        <button type="button" id="exportBtn" class="backup-btn">
+      <div class="row backup-actions">
+        <button type="button" id="exportBtn" class="btn btn--secondary">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 15V3"/><path d="m8 7 4-4 4 4"/>
@@ -809,7 +526,7 @@
           </svg>
           Export
         </button>
-        <button type="button" id="importBtn" class="backup-btn">
+        <button type="button" id="importBtn" class="btn btn--secondary">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3v12"/><path d="m8 11 4 4 4-4"/>
@@ -819,13 +536,15 @@
         </button>
       </div>
 
-      <div class="callout" id="backupCallout" hidden></div>
+      <div class="callout" id="backupCallout" hidden aria-live="polite"></div>
 
-      <dialog id="exportDialog" class="modal">
-        <form method="dialog" class="modal-body">
+      <!-- A real <dialog>: Escape closes it, focus is trapped, and the backdrop
+           is the browser's rather than a div pretending to be one. -->
+      <dialog id="exportDialog" aria-labelledby="expHead">
+        <form method="dialog" class="modal-body stack">
           <div class="modal-head">
-            <h3>Export config</h3>
-            <button type="submit" value="cancel" class="modal-x" aria-label="Close">
+            <h3 id="expHead">Export config</h3>
+            <button type="submit" value="cancel" class="icon-btn" aria-label="Close">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
@@ -835,34 +554,32 @@
             not your install URL, not your profile, not this server's address.</p>
           <div class="callout" id="expFields"></div>
 
-          <label class="checkbox-label active" id="expPersonalLabel" style="margin-top: 14px;">
+          <label class="tile checkbox-label active" id="expPersonalLabel">
             <input type="checkbox" id="expPersonal" checked>
             Include my teams, cities and timezone
           </label>
-          <p class="hint" id="expPersonalHint"></p>
+          <p class="hint" id="expPersonalHint" aria-live="polite"></p>
 
-          <div class="cat-legend" style="margin-bottom: 0;">
-            <button type="button" id="expCopy" class="chip">Copy to clipboard</button>
-          </div>
+          <div><button type="button" id="expCopy" class="chip">Copy to clipboard</button></div>
 
           <div class="modal-actions">
-            <button type="submit" value="cancel" class="btn secondary">Cancel</button>
-            <button type="submit" value="save" class="btn">Download</button>
+            <button type="submit" value="cancel" class="btn btn--secondary">Cancel</button>
+            <button type="submit" value="save" class="btn btn--primary">Download</button>
           </div>
         </form>
       </dialog>
 
-      <dialog id="importDialog" class="modal">
-        <form method="dialog" class="modal-body">
+      <dialog id="importDialog" aria-labelledby="impHead">
+        <form method="dialog" class="modal-body stack">
           <div class="modal-head">
-            <h3>Import config</h3>
-            <button type="submit" value="cancel" class="modal-x" aria-label="Close">
+            <h3 id="impHead">Import config</h3>
+            <button type="submit" value="cancel" class="icon-btn" aria-label="Close">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
           </div>
 
-          <div class="cat-legend">
+          <div class="chiprow">
             <button type="button" class="chip" id="impTabFile" aria-pressed="true">Upload a file</button>
             <button type="button" class="chip" id="impTabPaste" aria-pressed="false">Paste JSON</button>
           </div>
@@ -878,33 +595,71 @@
           </div>
 
           <div class="callout warn" id="impError" hidden aria-live="polite"></div>
-          <div class="callout" id="impPreview" hidden></div>
+          <div class="callout" id="impPreview" hidden aria-live="polite"></div>
           <div class="callout warn" id="impWarn" hidden></div>
 
           <div class="modal-actions">
-            <button type="submit" value="cancel" class="btn secondary">Cancel</button>
-            <button type="submit" value="save" class="btn" id="impConfirm" disabled>Replace settings</button>
+            <button type="submit" value="cancel" class="btn btn--secondary">Cancel</button>
+            <button type="submit" value="save" class="btn btn--primary" id="impConfirm" disabled>Replace settings</button>
           </div>
         </form>
       </dialog>
-    </div>
+    </section>
 
-    <div style="margin-top: 25px; padding: 16px; background: rgba(22, 104, 255, 0.08); border: 1px solid rgba(22, 104, 255, 0.2); border-radius: 16px; text-align: center;">
-      <p style="margin: 0 0 10px 0; font-size: 13px; color: var(--text-muted); line-height: 1.5;">
-        ☕ <strong>Support AIOSports</strong><br>Help keep our servers, scrapers, and 24/7 sports streams online!
-      </p>
+    <section class="card sec stack" aria-labelledby="supportHead">
+      <div class="head">
+        <h2 id="supportHead">Support AIOSports</h2>
+        <span class="section__hint">Servers, scrapers and 24/7 sports streams</span>
+      </div>
       <div class="footer-actions">
-        <a class="footer-link kofi" href="https://ko-fi.com/mlp20" target="_blank" rel="noopener noreferrer">
-          <svg height="18" viewBox="0 0 24 24" width="18" fill="currentColor"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.966-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.966 1.909.822 1.838 3.197.723 4.314z"/></svg>
+        <a class="btn btn--primary" href="https://ko-fi.com/mlp20" target="_blank" rel="noopener noreferrer">
+          <svg height="18" viewBox="0 0 24 24" width="18" fill="currentColor" aria-hidden="true"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.966-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.966 1.909.822 1.838 3.197.723 4.314z"/></svg>
           Support on Ko-fi
         </a>
-        <a class="footer-link" href="https://github.com/mlp2069/aiosports" target="_blank" rel="noopener noreferrer">
-          <svg height="18" viewBox="0 0 16 16" width="18" fill="currentColor"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+        <a class="btn btn--secondary" href="https://github.com/mlp2069/aiosports" target="_blank" rel="noopener noreferrer">
+          <svg height="18" viewBox="0 0 16 16" width="18" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
           GitHub
         </a>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
+
+  <!-- The Customize Addon dialog stays beside the heading it edits. -->
+  <dialog id="addonDialog" aria-labelledby="dlgHead">
+    <form method="dialog" class="modal-body stack">
+      <div class="modal-head">
+        <h3 id="dlgHead">Customize Addon</h3>
+        <button type="submit" value="cancel" class="icon-btn" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="dlgName">Addon name</label>
+        <input type="text" id="dlgName" maxlength="40" spellcheck="false" autocomplete="off">
+        <span class="field__hint">Shown wherever the addon is installed.</span>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="dlgLogo">Logo URL</label>
+        <input type="text" id="dlgLogo" spellcheck="false" autocomplete="off"
+               placeholder="Leave blank for the default logo">
+        <span class="field__hint">Must be a full https:// address your player can reach.</span>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="dlgDesc">Addon description</label>
+        <textarea id="dlgDesc" rows="4" maxlength="300" spellcheck="false"></textarea>
+        <span class="field__hint">Shown under the name in your player's addon list.</span>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" value="cancel" class="btn btn--secondary" id="dlgCancel">Cancel</button>
+        <button type="submit" value="save" class="btn btn--primary" id="dlgSave">Save Changes</button>
+      </div>
+    </form>
+  </dialog>
 
   <script>
     const btn = document.getElementById('installBtn');
@@ -2780,6 +2535,24 @@
     });
     
     updateLink();
+
+    // ---- added with the redesign, and nothing but accessibility -----------
+    // The four segmented rows say which option is on with a class; app.css
+    // draws the same state from aria-pressed, and a screen reader has no other
+    // way to hear it. Mirrored with an observer rather than by editing the four
+    // click handlers, because the behaviour in those is hard-won and is left
+    // exactly as it was.
+    (() => {
+      const rows = [timeFormatRow, sortByRow, bufferRow, streamOrderRow];
+      const sync = row => row.querySelectorAll('.toggle').forEach(t =>
+        t.setAttribute('aria-pressed', String(t.classList.contains('active'))));
+      for (const row of rows) {
+        sync(row);
+        // attributeFilter is 'class', so writing aria-pressed cannot re-enter here.
+        new MutationObserver(() => sync(row))
+          .observe(row, { subtree: true, attributes: true, attributeFilter: ['class'] });
+      }
+    })();
   </script>
 </body>
 
