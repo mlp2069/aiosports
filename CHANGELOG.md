@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.6.6 (2026-09-21)
+
+The web UI, rebuilt. The four pages shared nothing before this: the dashboard was light while the rest were dark, its header sat on a different grid from its own content, spacing ran 5, 10, 12, 13, 14 and 15 pixels with no scale behind it, and one blue was simultaneously the primary action, the active tab and the error colour. There is now a single stylesheet of fifty-one tokens that every page is built from, and the setup page has been reorganised rather than repainted — it was eleven identical cards with INSTALL two thirds of the way down, and it now opens with the install action, then the three things a first-time viewer actually decides, with everything else behind three groups named for what they configure. Also fixes the addon's own logo, which had stopped appearing in addon managers.
+
+### Features
+
+* **ui:** rebuild all four pages on one design system. Dark by design rather than by accident: elevation comes from a lightness ramp, because a black shadow on a near-black canvas is invisible, and borders are white at low alpha, because a border darker than its surface reads as a crack. Type is size, leading and tracking travelling together; spacing is in rem, so the layout survives a TV browser at 125%. Craft the pages did not have before — a visible focus ring on everything focusable, hover gated so it stops sticking to the first tap on a phone, press feedback on pointer-down, tabular numerals wherever a number changes, and reduced motion, reduced transparency and increased contrast handled as the three independent signals they are. Twelve `transition: all` are gone. The setup page's script is untouched but for seventeen appended lines that let a screen reader hear which toggle is on ([64930e8](https://github.com/mlp2069/aiosports/commit/64930e8))
+
+### Bug Fixes
+
+* **server:** match our own file names again, so the logo shows. The response rewriter has always matched a relative internal link by prefix and an absolute one tightly, and unifying them on the tight pattern broke the loose case: our files are not named after their routes — the logo is served as /logo-v2.png — so the manifest began advertising a relative logo and every client that does not resolve one against the manifest's own address drew a blank square where the icon goes ([c422c22](https://github.com/mlp2069/aiosports/commit/c422c22))
+
 ## v1.6.2 (2026-09-21)
 
 Three things a viewer should notice, and one they should not. Streams start quicker, because the addon now tells a player what a link holds before it opens it instead of letting it guess wrong and start over. The extra buffer added in v1.5.0 works for the first time — it had never once engaged on the sources it was written for, so a viewer who asked for ten extra seconds of cushion had been getting exactly what they would have got without asking. And the background sweep stops spending its time on hosts that no longer exist. The one nobody should notice is the test suite: six of its files had never been run since the day they were written, and the branch that carries every stream link to a player had no test at all.
