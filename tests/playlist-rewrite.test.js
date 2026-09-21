@@ -57,7 +57,7 @@ const out2 = lines(rewritePlaylist(['#EXTM3U', '#EXTINF:6,', 'seg1.ts', 'https:/
   { targetUrl: other, finalUrl: other, referer: 'https://timstreams.example/', origin: 'https://timstreams.example' }));
 t('https://edge.hundxvision.co.uk/live/abc/seg1.ts?tok=1', out2[2], 'a segment elsewhere is a plain absolute link');
 t('https://v.tiktokcdn-us.com/x/seg2.image?tok=1#.ts', out2[3], 'a segment named .image is told it is one, after the token it inherits');
-t(true, out2[4].startsWith('/api/manifest?'), 'a sub-playlist always comes back through the proxy');
+t(true, out2[4].startsWith('/api/manifest.m3u8?'), 'a sub-playlist always comes back through the proxy');
 t(true, verifyManifestQuery(query(out2[4])), 'with a link that verifies');
 t('https://edge.hundxvision.co.uk/live/abc/low/index.m3u8?tok=1', query(out2[4]).url, 'resolved and given the token');
 
@@ -67,7 +67,7 @@ const keyed = ['#EXTM3U', '#EXT-X-KEY:METHOD=AES-128,URI="key.bin",IV=0x1', '#EX
 const out3 = lines(rewritePlaylist(keyed, { targetUrl: target, finalUrl: target, referer: 'https://embed.st/', origin: 'https://embed.st' }));
 t(true, /^#EXT-X-KEY:METHOD=AES-128,URI="\/api\/segment\/key\.bin\?/.test(out3[1]), 'a key on a relayed host is relayed');
 t(true, /^#EXT-X-MAP:URI="\/api\/segment\/init\.mp4\?/.test(out3[2]), 'so is an init section');
-t(true, /^#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",URI="\/api\/manifest\?/.test(out3[3]), 'an alternate rendition is a playlist, so the proxy');
+t(true, /^#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",URI="\/api\/manifest\.m3u8\?/.test(out3[3]), 'an alternate rendition is a playlist, so the proxy');
 t(true, out3[5].startsWith('/api/segment/a.m4s?'), 'an fMP4 segment keeps its extension');
 const unnamed = ['#EXTM3U', '#EXT-X-KEY:METHOD=AES-128,URI="https://cdn7.strmd.st/key.php?id=1"', '#EXT-X-MAP:URI="https://cdn7.strmd.st/init?x=1"', '#EXTINF:4,', 'https://cdn7.strmd.st/m/chunk'].join('\n');
 const out7 = lines(rewritePlaylist(unnamed, { targetUrl: target, finalUrl: target }));

@@ -1112,7 +1112,10 @@ async function fetchUpstreamManifest(targetUrl, referer, origin) {
   throw new Error('too many redirects');
 }
 
-app.get('/api/manifest', async (req, res) => {
+// Both spellings: .m3u8 is what new links carry, the bare path is what every
+// link handed out before it carries, and a live player reloads by the link
+// it already has.
+app.get(['/api/manifest', '/api/manifest.m3u8'], async (req, res) => {
   // Only links this server minted. Anything else was an open proxy that
   // fetched whatever it was given from the owner's connection (manifestLink.js).
   if (!verifyManifestQuery(req.query)) return res.status(403).send('Invalid stream link');

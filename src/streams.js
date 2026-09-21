@@ -883,6 +883,19 @@ async function handleStream(type, id, config) {
     // Add behaviorHints to group streams and handle CORS for direct streams
     s.behaviorHints = s.behaviorHints || {};
     s.behaviorHints.bingeGroup = `nuvio_sport_${matchId}`;
+
+    // Tell the player what the link holds before it fetches a byte of it.
+    // The path now ends in .m3u8, and these two say the same thing again for
+    // clients that read one and not the other: a filename is consulted ahead
+    // of the address, and a declared response Content-Type ahead of a probe.
+    if (s.url && s.url.includes('/api/manifest')) {
+      if (!s.behaviorHints.filename) s.behaviorHints.filename = 'stream.m3u8';
+      const proxy = s.behaviorHints.proxyHeaders || (s.behaviorHints.proxyHeaders = {});
+      proxy.response = Object.assign(
+        { 'Content-Type': 'application/vnd.apple.mpegurl' },
+        proxy.response || {}
+      );
+    }
     
     // If it's a direct m3u8 stream and not routed through our proxy, mark it notWebReady
     if (s.url && s.url.includes('.m3u8') && !s.url.includes('/api/manifest')) {

@@ -83,9 +83,23 @@ const query = (url, referer, origin, kind) =>
   + `&origin=${encodeURIComponent(origin)}`
   + `&sig=${signature(url, referer, origin, kind)}`;
 
-/** The path of a signed proxy link: /api/manifest?url=…&referer=…&origin=…&sig=… */
+/**
+ * The path of a signed proxy link:
+ * /api/manifest.m3u8?url=…&referer=…&origin=…&sig=…
+ *
+ * The extension is for the player, not for us -- both spellings reach the same
+ * route. A client that has to work out what a link holds reads the path for an
+ * extension, and every one of them cuts the query off first, so the .m3u8
+ * sitting in `url=` was never visible: a bare /api/manifest looked like a file
+ * of no known kind. A player that guesses wrong opens a playlist as if it were
+ * a container, fails, then probes for a Content-Type and starts over.
+ *
+ * The signature covers the query alone, so a link minted under the old
+ * spelling still verifies -- a player mid-stream keeps reloading by the link
+ * it was handed.
+ */
 function manifestPath(url, referer = '', origin = '') {
-  return '/api/manifest' + query(url, referer, origin, '');
+  return '/api/manifest.m3u8' + query(url, referer, origin, '');
 }
 
 /**
