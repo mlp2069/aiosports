@@ -1,6 +1,6 @@
 {
   "name": "aiosports",
-  "version": "1.6.5",
+  "version": "1.6.2",
   "description": "Self-hosted live sports and 24/7 channels addon for Stremio and Nuvio.",
   "main": "src/index.js",
   "scripts": {

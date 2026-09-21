@@ -1,37 +1,19 @@
 # Changelog
 
-## v1.6.5 (2026-09-21)
-
-The extra buffer has never worked on the sources it was written for. Those sources publish about fifteen seconds of playlist, and a player already starts twelve seconds from the end, so the only way to give it a wider cushion is to serve a window deeper than the source's own — built from segments the source has stopped listing, and only once the host has been shown to still answer for them. That evidence comes from a single probe, and the probe threw every time it ran: it called the shared connection agent, which is an instance and not a factory, and it asked undici to follow redirects, which undici refuses when it is handed an agent. Both throws were caught and written down as "this host does not keep its segments", so the answer was no on every host from the day the feature shipped, and a viewer who asked for ten extra seconds was served exactly what they would have been served without asking. Against a real source the probe now answers 206 where it threw before.
-
-### Bug Fixes
-
-* **liveDelay:** make the retention probe work, so the extra buffer does. The probe's options move into one function that the tests check, and the test hands the real options to undici — which rejects an invalid set before opening a socket, so a connection error is proof they were accepted. Every existing test injected its own fetch, which is why the real request was never built and nothing caught this ([8416611](https://github.com/mlp2069/aiosports/commit/8416611))
-
-## v1.6.4 (2026-09-21)
-
-Fixes an outage in v1.6.3, which is withdrawn. Giving the proxy path a .m3u8 extension stopped the response rewriter from recognising it, and that rewriter is the only thing that puts a reachable address on a stream row: rows are minted with the server's own address on the front, which inside a container is the Docker bridge, and it is swapped for the host the request came in on as the response goes out. Once the pattern stopped matching, every proxied stream was handed to the player addressed 172.x.x.x, which nothing outside the container can open. Direct CDN rows carry the upstream's own address and were never rewritten, so they kept playing while everything proxied did not. Nothing was visible from the server, because the playlist answered 200 to anyone who could reach it and the player never could.
-
-### Bug Fixes
-
-* **server:** keep readdressing a proxy link after it gained an extension. The rewriter now treats /api/manifest and /api/manifest.m3u8 as one route and tolerates a future .mpd, and it moves out of the response middleware into its own module, because where it lived nothing could test it — the pattern that broke was the only untested branch in the path a viewer depends on ([e372750](https://github.com/mlp2069/aiosports/commit/e372750))
-
-## v1.6.3 (2026-09-21) — withdrawn, superseded by v1.6.4
-
-Every stream started twice. A player works out how to open a link by reading its path for an extension, and it cuts the query off before it looks -- so on a link of the form /api/manifest?url=<the real .m3u8>, the only extension present was in the part being discarded. Unable to tell, the player opened the playlist as if it were a video container, failed, probed the address to ask what it actually was, then threw itself away and started over. It always arrived, which is why this never looked like a fault, but it paid that whole round trip on every launch of every stream. Proxy links now carry a .m3u8 of their own and say the same thing twice more in the stream row, so a player knows what it is holding before it fetches a byte.
-
-### Bug Fixes
-
-* **streams:** give a proxy link an extension a player can read, so a playlist is opened as a playlist the first time. The path is now /api/manifest.m3u8, and the row carries behaviorHints.filename and a declared response Content-Type for clients that read one of those instead of the address. The route still answers to the old path and the signature covers the query alone, so links already handed out keep working across the deploy -- a live player reloads by the link it was given ([75c6afe](https://github.com/mlp2069/aiosports/commit/75c6afe))
-* **tests:** run every suite. live-delay, live-status, verify-retry, remint and name-folding were each written alongside the fix they cover and then never added to the test script, so nothing had run them since the day they were written; the suite now covers 660 assertions across 19 files ([97d87b4](https://github.com/mlp2069/aiosports/commit/97d87b4))
-
 ## v1.6.2 (2026-09-21)
 
-Housekeeping the health check turned up. Of 79 stream-check failures in four hours, 74 were a single host — tvpass.org, which carries Marquee in the iptv-org data and has been gone for days — and each one was being attempted twice, because the retry added in v1.5.1 could not tell a dead name from a slow one. None of this ever reached a viewer; it was the background channel sweep spending time on a host that no longer exists.
+Three things a viewer should notice, and one they should not. Streams start quicker, because the addon now tells a player what a link holds before it opens it instead of letting it guess wrong and start over. The extra buffer added in v1.5.0 works for the first time — it had never once engaged on the sources it was written for, so a viewer who asked for ten extra seconds of cushion had been getting exactly what they would have got without asking. And the background sweep stops spending its time on hosts that no longer exist. The one nobody should notice is the test suite: six of its files had never been run since the day they were written, and the branch that carries every stream link to a player had no test at all.
+
+### Performance Improvements
+
+* **streams:** tell a player the link is a playlist before it opens it. A client works out how to open a stream by reading the path for an extension, and cuts the query off first — so on /api/manifest?url=<the real .m3u8> the only extension present was in the part being discarded. Unable to tell, a player opened the playlist as a video container, failed, probed the address to ask what it was, then threw itself away and started again, on every launch of every stream. Proxy links now carry a .m3u8 of their own, and the row repeats it as behaviorHints.filename and a declared response Content-Type for clients that read one signal and not the other ([75c6afe](https://github.com/mlp2069/aiosports/commit/75c6afe))
 
 ### Bug Fixes
 
+* **liveDelay:** make the retention probe work, so the extra buffer does. These sources publish about fifteen seconds of playlist and a player already starts twelve seconds from the end, so the only way to widen the cushion is to serve a window deeper than the source's own — built from segments it has stopped listing, and only once the host has been shown to still answer for them. That evidence comes from one probe, and the probe threw every time: it called the shared connection agent, which is an instance and not a factory, and it asked undici to follow redirects, which undici refuses when handed an agent. Both throws were caught and recorded as "this host does not keep its segments", so the answer was no on every host from the day the feature shipped ([8416611](https://github.com/mlp2069/aiosports/commit/8416611))
 * **streams:** stop asking a host whose name does not resolve. ENOTFOUND is definitive in the way a 404 is, so it is no longer retried, and the host is written off for six hours — a stream on a host already written off is dropped without a network call at all. Written off by observation rather than by name, so the next host to disappear costs one failed lookup instead of a code change; timeouts and refused connections are still retried as before ([62df9eb](https://github.com/mlp2069/aiosports/commit/62df9eb))
+* **server:** readdress a proxy link whatever its path. Stream rows are minted with the server's own address on the front, which inside a container is one nothing outside it can reach, and a response rewriter swaps it for the host the request arrived on. It matched the proxy route only when the path ended there, so a path carrying an extension was left as minted. It now treats /api/manifest and /api/manifest.m3u8 as one route and tolerates a future .mpd, and it moves out of the response middleware into its own module, where it can be tested — it had been the only untested branch in the path every stream link takes to a player ([e372750](https://github.com/mlp2069/aiosports/commit/e372750))
+* **tests:** run every suite, not the thirteen that were listed. live-delay, live-status, verify-retry, remint and name-folding were each written alongside the fix they cover and never added to the test script, so nothing had run them since. The suite now covers 21 files ([97d87b4](https://github.com/mlp2069/aiosports/commit/97d87b4))
 
 ## v1.6.1 (2026-09-21)
 
