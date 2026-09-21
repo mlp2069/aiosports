@@ -19,16 +19,28 @@
  * middleware where nothing could test it.
  */
 
-// A path this server owns. The optional extension is the point: /api/manifest
-// and /api/manifest.m3u8 are one route, and a future .mpd must not repeat the
-// outage that taught us this.
+// The two forms are matched differently, and that is deliberate.
+//
+// A RELATIVE path can only have been written by us, so a prefix is enough --
+// and it must be enough, because our own files are not named after their
+// routes. The manifest's logo is served as /logo-v2.png, and a pattern that
+// insisted the path end right after "logo" stopped matching it, so the
+// manifest went out advertising a relative logo and every client that does not
+// resolve one against the manifest's own address showed a blank square.
+const INTERNAL_PREFIX = /^\/(?:img|watch|api\/manifest|logo)/;
+
+// An ABSOLUTE url is matched tightly, because readdressing someone else's link
+// to us would send a viewer to the wrong server. The path must be one of ours
+// and then stop, carry a file extension, or continue with ? or /. The optional
+// extension is the point: /api/manifest and /api/manifest.m3u8 are one route,
+// and a future .mpd must not repeat the outage that taught us this.
 const INTERNAL_ROUTE = /^\/(?:img|watch|api\/manifest|logo)(?:\.[A-Za-z0-9]{1,8})?(?:[?\/].*)?$/;
 
 /** The path part of a link that points back at us, or null if it is not ours. */
 function internalPath(url) {
   if (!url || typeof url !== 'string') return null;
-  // Relative: already just a path.
-  if (INTERNAL_ROUTE.test(url)) return url;
+  // Relative: already just a path, and only we could have written it.
+  if (INTERNAL_PREFIX.test(url)) return url;
   // Absolute: a legacy or static base, or this machine's own LAN address.
   const m = url.match(/^https?:\/\/[^/]+(\/.*)$/);
   return m && INTERNAL_ROUTE.test(m[1]) ? m[1] : null;
@@ -40,4 +52,4 @@ function rewriteInternalUrl(url, baseUrl) {
   return path === null ? url : `${baseUrl}${path}`;
 }
 
-module.exports = { INTERNAL_ROUTE, internalPath, rewriteInternalUrl };
+module.exports = { INTERNAL_ROUTE, INTERNAL_PREFIX, internalPath, rewriteInternalUrl };

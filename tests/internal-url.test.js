@@ -79,5 +79,20 @@ t('', rewriteInternalUrl('', PUB), 'an empty string is returned unchanged');
 t(`${PUB}/api/manifest.mpd?url=x`, to(`${BRIDGE}/api/manifest.mpd?url=x`), 'a future .mpd is already covered');
 t(`${PUB}/api/manifest.m3u`, to(`${BRIDGE}/api/manifest.m3u`), 'an extension with no query is covered');
 
+// ─── Our own files are not named after their routes ─────────────────────────
+// The addon's logo is served as /logo-v2.png. A relative path can only have
+// been written by us, so a prefix match is what the rewriter always used --
+// and when that was tightened to require the path to end after "logo", the
+// manifest advertised a relative logo and clients showed a blank square.
+t(`${PUB}/logo-v2.png`, to('/logo-v2.png'), 'the logo file is made absolute');
+t(`${PUB}/logo-v2.png?v=3`, to('/logo-v2.png?v=3'), 'even with a cache-buster');
+t('/logo-v2.png', internalPath('/logo-v2.png'), 'and is recognised as ours');
+t(`${PUB}/img-cover.png`, to('/img-cover.png'), 'the same holds for an /img file');
+
+// A foreign absolute url that merely looks like one of our files is still not
+// ours to readdress -- only relative paths get the loose match.
+t('https://cdn.example/logo-v2.png', to('https://cdn.example/logo-v2.png'),
+  'someone else\'s logo file is left alone');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
