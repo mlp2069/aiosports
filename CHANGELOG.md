@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.3 (2026-09-21)
+
+Every stream started twice. A player works out how to open a link by reading its path for an extension, and it cuts the query off before it looks -- so on a link of the form /api/manifest?url=<the real .m3u8>, the only extension present was in the part being discarded. Unable to tell, the player opened the playlist as if it were a video container, failed, probed the address to ask what it actually was, then threw itself away and started over. It always arrived, which is why this never looked like a fault, but it paid that whole round trip on every launch of every stream. Proxy links now carry a .m3u8 of their own and say the same thing twice more in the stream row, so a player knows what it is holding before it fetches a byte.
+
+### Bug Fixes
+
+* **streams:** give a proxy link an extension a player can read, so a playlist is opened as a playlist the first time. The path is now /api/manifest.m3u8, and the row carries behaviorHints.filename and a declared response Content-Type for clients that read one of those instead of the address. The route still answers to the old path and the signature covers the query alone, so links already handed out keep working across the deploy -- a live player reloads by the link it was given ([75c6afe](https://github.com/mlp2069/aiosports/commit/75c6afe))
+* **tests:** run every suite. live-delay, live-status, verify-retry, remint and name-folding were each written alongside the fix they cover and then never added to the test script, so nothing had run them since the day they were written; the suite now covers 660 assertions across 19 files ([97d87b4](https://github.com/mlp2069/aiosports/commit/97d87b4))
+
 ## v1.6.2 (2026-09-21)
 
 Housekeeping the health check turned up. Of 79 stream-check failures in four hours, 74 were a single host — tvpass.org, which carries Marquee in the iptv-org data and has been gone for days — and each one was being attempted twice, because the retry added in v1.5.1 could not tell a dead name from a slow one. None of this ever reached a viewer; it was the background channel sweep spending time on a host that no longer exists.
