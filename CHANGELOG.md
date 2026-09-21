@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.1 (2026-09-21)
+
+Two small fixes found while reviewing what upstream had been doing. A club whose name carries a letter no Unicode normal form takes apart — the ø in Bodø/Glimt, the ł in Łódź — had that letter deleted rather than folded, so ⭐ Your Teams never matched it. And a stream served as a progressive .mp4 was being judged against the rules for a playlist, which no mp4 can pass, so those rows were dropped before anyone saw them.
+
+### Bug Fixes
+
+* **catalog:** fold the letters no normal form decomposes — ø, ł, ß, đ, æ — so Your Teams matches a club the way a viewer spells it. The bundled ESPN table is not consistent about them, spelling Bodø/Glimt "bodo glimt" but Brøndby "brndby", so the lookup now tries the older spelling when the current one misses; both directions gain, and "Brondby" typed by hand resolves for the first time ([8b62e3b](https://github.com/mlp2069/aiosports/commit/8b62e3b))
+* **streams:** stop dropping .mp4 streams as invalid playlists. The pre-flight check reads the head of a playlist and rejects a body with no #EXT in it, which is every mp4 ever served; web player links were already exempt for the same reason and progressive media now is too ([7f5bd45](https://github.com/mlp2069/aiosports/commit/7f5bd45))
+
 ## v1.6.0 (2026-09-20)
 
 Streams used to die partway through a match and then vanish from the list when you refreshed. The stream was still on air — only its address had gone stale. Several sources hand out a playlist address that carries an expiry, and TotalSportek's lasts about thirty minutes, which is halfway through a football match. Watched one expire on the clock: a playlist forty seconds before the advertised time, and a 403 from the CDN thirty-six seconds after it. The addon now notices that answer, re-resolves the source, and serves the same feed under a fresh address without the player ever knowing.

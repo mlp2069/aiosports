@@ -12,7 +12,7 @@ const manifest = {
   // Its own id, not upstream's. Sharing 'community.nuvio.live-sports' made the
   // two addons look like one to anything that keys installed addons by id.
   id: 'community.aiosports',
-  version: '1.6.0',
+  version: '1.6.1',
   name: 'AIOSports',
   description:
     'Live sports fixtures and 24/7 channels from several public sources, gathered into one catalog ' +
