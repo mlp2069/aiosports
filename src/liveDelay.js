@@ -293,17 +293,32 @@ async function askRetention(sampleUrl, referer = '', origin = '', deps = null) {
   }
 }
 
+/**
+ * The options for one probe request.
+ *
+ * Both mistakes that made every probe fail silently live in this object, so
+ * it is built in one place and checked by a test. publicAgent is a dispatcher
+ * instance, not a factory -- calling it threw TypeError -- and undici refuses
+ * maxRedirections when it is given a dispatcher, which threw
+ * InvalidArgumentError. Either throw was caught by askRetention and recorded
+ * as "this host does not keep its segments", so the deep window was never
+ * served and the extra buffer did nothing on the shallow sources it exists
+ * for. A redirect now simply answers non-2xx, which reads as "no", the same
+ * conservative answer segmentPolicy settles for.
+ */
+function probeOptions(headers, signal) {
+  const { publicAgent } = require('./netGuard');
+  return { method: 'GET', headers, signal, dispatcher: publicAgent };
+}
+
 async function defaultProbe(url, headers) {
   const { request } = require('undici');
-  const { assertPublicUrl, publicAgent } = require('./netGuard');
+  const { assertPublicUrl } = require('./netGuard');
   await assertPublicUrl(url);
   const control = new AbortController();
   const timer = setTimeout(() => control.abort(), PROBE_MS);
   try {
-    const res = await request(url, {
-      method: 'GET', headers, signal: control.signal,
-      dispatcher: publicAgent(), maxRedirections: 2
-    });
+    const res = await request(url, probeOptions(headers, control.signal));
     try { await res.body.dump(); } catch (e) { /* nothing to read */ }
     return res.statusCode;
   } finally { clearTimeout(timer); }
@@ -313,7 +328,7 @@ module.exports = {
   applyBuffer, bufferSeconds, expiredSegments, retentionOk, askRetention,
   MAX_SECONDS,
   _internal: {
-    parse, remember, render, streams, kept,
+    parse, remember, render, streams, kept, probeOptions, defaultProbe,
     reset() { streams.clear(); kept.clear(); asking.clear(); },
     setRetention(host, ok) { kept.set(host, { ok, until: Date.now() + RETENTION_TTL_MS }); }
   }
