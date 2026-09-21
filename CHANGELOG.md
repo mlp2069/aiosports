@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.6.5 (2026-09-21)
+
+The extra buffer has never worked on the sources it was written for. Those sources publish about fifteen seconds of playlist, and a player already starts twelve seconds from the end, so the only way to give it a wider cushion is to serve a window deeper than the source's own — built from segments the source has stopped listing, and only once the host has been shown to still answer for them. That evidence comes from a single probe, and the probe threw every time it ran: it called the shared connection agent, which is an instance and not a factory, and it asked undici to follow redirects, which undici refuses when it is handed an agent. Both throws were caught and written down as "this host does not keep its segments", so the answer was no on every host from the day the feature shipped, and a viewer who asked for ten extra seconds was served exactly what they would have been served without asking. Against a real source the probe now answers 206 where it threw before.
+
+### Bug Fixes
+
+* **liveDelay:** make the retention probe work, so the extra buffer does. The probe's options move into one function that the tests check, and the test hands the real options to undici — which rejects an invalid set before opening a socket, so a connection error is proof they were accepted. Every existing test injected its own fetch, which is why the real request was never built and nothing caught this ([8416611](https://github.com/mlp2069/aiosports/commit/8416611))
+
 ## v1.6.4 (2026-09-21)
 
 Fixes an outage in v1.6.3, which is withdrawn. Giving the proxy path a .m3u8 extension stopped the response rewriter from recognising it, and that rewriter is the only thing that puts a reachable address on a stream row: rows are minted with the server's own address on the front, which inside a container is the Docker bridge, and it is swapped for the host the request came in on as the response goes out. Once the pattern stopped matching, every proxied stream was handed to the player addressed 172.x.x.x, which nothing outside the container can open. Direct CDN rows carry the upstream's own address and were never rewritten, so they kept playing while everything proxied did not. Nothing was visible from the server, because the playlist answered 200 to anyone who could reach it and the player never could.

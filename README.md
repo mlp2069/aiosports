@@ -4,7 +4,7 @@
 
 # AIOSports
 
-[![Version](https://img.shields.io/badge/version-v1.6.4-brightgreen.svg)](https://github.com/mlp2069/aiosports/releases/latest)
+[![Version](https://img.shields.io/badge/version-v1.6.5-brightgreen.svg)](https://github.com/mlp2069/aiosports/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Forked from](https://img.shields.io/badge/forked_from-rajhodedara%2Flive--sport--plugin-6e7681?logo=github&logoColor=white)](https://github.com/rajhodedara/live-sport-plugin)
 [![Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/mlp20)
