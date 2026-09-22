@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.6.7 (2026-09-21)
+
+A button that did nothing where it was needed most, and a README that claimed more than anyone had checked. COPY LINK FOR NUVIO reached straight for the clipboard API, which does not exist on a plain-http origin — so on exactly the setup the project recommends for Nuvio, pressing it did nothing at all. And the README described Stremio support throughout in the project's own voice, when the addon has only ever been run in Nuvio.
+
+### Bug Fixes
+
+* **configure:** make COPY LINK FOR NUVIO work on a plain-http server. It now takes the same two paths the page's other two copy buttons have always taken — the clipboard API on a secure origin, a hidden textarea with execCommand when there is not one — and a clipboard the browser refuses falls into the same fallback instead of passing silently. The button's label is also captured once rather than read inside the handler, so a second press while it reads COPIED no longer adopts that as the label and keeps it ([60540d5](https://github.com/mlp2069/aiosports/commit/60540d5))
+
+### Documentation
+
+* **readme:** say plainly that Stremio is untested. The addon does speak the Stremio protocol — the manifest is built through the official SDK, which lints it on every boot — but it has only ever been run in Nuvio, and this fork's history contains no Stremio fix and no Stremio verification. The gap is now a list of specific unknowns rather than a shrug: every catalog is published as type `tv` and nobody has looked at where Stremio puts one; the 24/7 channel rows pass headers that Stremio only forwards on notWebReady streams, which these deliberately are not; and Extra Buffer works through #EXT-X-START, which ExoPlayer, hls.js and AVPlayer read and Stremio's player is not known to. The https requirement is no longer asserted as fact, because nothing in the repository establishes it ([58c257f](https://github.com/mlp2069/aiosports/commit/58c257f))
+
 ## v1.6.6 (2026-09-21)
 
 The web UI, rebuilt. The four pages shared nothing before this: the dashboard was light while the rest were dark, its header sat on a different grid from its own content, spacing ran 5, 10, 12, 13, 14 and 15 pixels with no scale behind it, and one blue was simultaneously the primary action, the active tab and the error colour. There is now a single stylesheet of fifty-one tokens that every page is built from, and the setup page has been reorganised rather than repainted — it was eleven identical cards with INSTALL two thirds of the way down, and it now opens with the install action, then the three things a first-time viewer actually decides, with everything else behind three groups named for what they configure. Also fixes the addon's own logo, which had stopped appearing in addon managers.

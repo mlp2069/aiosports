@@ -4,7 +4,7 @@
 
 # AIOSports
 
-[![Version](https://img.shields.io/badge/version-v1.6.6-brightgreen.svg)](https://github.com/mlp2069/aiosports/releases/latest)
+[![Version](https://img.shields.io/badge/version-v1.6.7-brightgreen.svg)](https://github.com/mlp2069/aiosports/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Forked from](https://img.shields.io/badge/forked_from-rajhodedara%2Flive--sport--plugin-6e7681?logo=github&logoColor=white)](https://github.com/rajhodedara/live-sport-plugin)
 [![Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/mlp20)
@@ -64,7 +64,7 @@ The server only needs to reach the internet, not be reachable from it. Anything 
 
 The setup page has two buttons, and they do different things. **INSTALL ADDON** hands the address to a copy of Stremio installed on the same machine, through a `stremio://` link. **COPY LINK FOR NUVIO** puts the plain `https://` address on your clipboard, which is what Nuvio and most other players want you to paste.
 
-Both of them want an `https://` address. The `stremio://` link drops the scheme and the player puts `https://` back, so from a plain `http://192.168.x.x` server that button produces an address that does not resolve. On a plain-http server, select the address text and copy it by hand.
+**INSTALL ADDON** needs an `https://` address: the `stremio://` link drops the scheme and the player puts `https://` back, so from a plain `http://192.168.x.x` server it hands the player an address that does not resolve. **COPY LINK FOR NUVIO** works from either kind of address.
 
 ### Stremio support is untested
 
