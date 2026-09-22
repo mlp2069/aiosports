@@ -9,7 +9,11 @@
 [![Forked from](https://img.shields.io/badge/forked_from-rajhodedara%2Flive--sport--plugin-6e7681?logo=github&logoColor=white)](https://github.com/rajhodedara/live-sport-plugin)
 [![Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/mlp20)
 
-A self-hosted addon for [Stremio](https://www.stremio.com/) and [Nuvio](https://nuvio.tv) that gathers live sports fixtures and 24/7 channels from several public sources into one catalog.
+A self-hosted addon that gathers live sports fixtures and 24/7 channels from several public sources into one catalog.
+
+It is built on the [Stremio addon protocol](https://github.com/Stremio/stremio-addon-sdk): the manifest is constructed through the official `stremio-addon-sdk`, which lints it every time the server boots, and the addon answers `catalog`, `meta` and `stream` the way any Stremio addon does. Any player that speaks that protocol can install it — [Stremio](https://www.stremio.com/) itself, [Nuvio](https://nuvio.tv), and the others built on it.
+
+**It has only ever been run in Nuvio.** Everything here was built and measured against Nuvio and NuvioTV. Stremio has never been tried. See [Stremio support is untested](#stremio-support-is-untested) for what that means in practice — it is a list of specific unknowns, not a general disclaimer.
 
 - **One tile per event.** When several sources carry the same fixture or channel, their streams are merged onto a single tile.
 - **Covers for everything.** Fixtures are drawn from both teams' crests, and channels get a cover with their logo. The server renders them, so every player shows the same thing.
@@ -55,12 +59,30 @@ The server only needs to reach the internet, not be reachable from it. Anything 
 1. Open `/configure` on your server and pick your sports, sources and teams.
 2. Press **Save** to get an install link that ends in `/manifest.json`. You can also copy the link from the install button.
 3. Add that link in your player:
-   - **Stremio:** paste it into the search box on the Addons page, then press Install.
-   - **Nuvio:** go to Settings → Addons and add the link.
+   - **Nuvio:** Settings → Addons, then add the link. This is the path everything here was built against.
+   - **Stremio:** paste it into the search box on the Addons page and press Install. Untested — see below.
 
-### Stremio needs https
+The setup page has two buttons, and they do different things. **INSTALL ADDON** hands the address to a copy of Stremio installed on the same machine, through a `stremio://` link. **COPY LINK FOR NUVIO** puts the plain `https://` address on your clipboard, which is what Nuvio and most other players want you to paste.
 
-Stremio only loads addons over `https://`. The one exception is an addon at `http://127.0.0.1` on the same computer. A home address like `http://192.168.1.50:7000` works in Nuvio but not in Stremio. Two common ways to get https:
+Both of them want an `https://` address. The `stremio://` link drops the scheme and the player puts `https://` back, so from a plain `http://192.168.x.x` server that button produces an address that does not resolve. On a plain-http server, select the address text and copy it by hand.
+
+### Stremio support is untested
+
+The addon is written to the Stremio protocol and validated by Stremio's own linter on every boot, so it should install. Nobody has confirmed that it does. This fork is eighteen months of commits with no Stremio fix and no Stremio verification in any of them — the Stremio-shaped parts are inherited from upstream, not maintained here.
+
+These are the specific things nobody has checked, worth knowing before you spend an evening on it:
+
+- **Where the tabs show up.** Every catalog is published as type `tv`. Nuvio renders those as rows on its home screen. Whether Stremio puts a `tv` catalog on the Board, inside Discover, or nowhere at all has never been looked at. This is the biggest unknown of the lot, because it decides whether you see anything.
+- **24/7 channels may not play.** Those rows pass a `Referer` and `User-Agent` to the player, because some hosts refuse a request without them. Nuvio sends those headers. Stremio's documented rule is that it only passes an addon's headers on streams marked `notWebReady`, and these rows deliberately are not marked that way. If the channels fail in Stremio while fixtures play, this is why.
+- **Extra Buffer probably does nothing.** It works by telling the player to start further back in the playlist, with `#EXT-X-START`. That tag is read by ExoPlayer, hls.js and AVPlayer; the timings were measured against ExoPlayer. Stremio's player is not on that list. A `HOLD-BACK` value goes out alongside it for players that read that instead, which may or may not cover it.
+- **The per-tab placement options.** In `/configure` you can ask for a tab to stay off the home screen. How a player honours that differs between players — in Nuvio only "searchable only" actually removes a tab from home. What Stremio does with the same manifest is unknown.
+- **Web Stream rows** hand off to a browser page this server hosts, rather than to a video stream. How a given player opens that, or whether it does, has only been watched in Nuvio.
+
+If you do run it in Stremio, [open an issue](https://github.com/mlp2069/aiosports/issues) and say what happened. That is genuinely the fastest way this list gets shorter.
+
+### Addresses and https
+
+A plain `http://192.168.1.50:7000` address works in Nuvio. Stremio is widely reported to require `https://` for anything that is not on the same machine as the player — that is not something this project has verified, so treat it as the reason to set up https rather than as a rule we can vouch for. Two common ways to get one:
 
 - **Cloudflare Tunnel.** Install [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/), then run `cloudflared tunnel --url http://127.0.0.1:7000`. That gives you a temporary `https://….trycloudflare.com` address. A named tunnel on your own domain gives you a permanent one.
 - **A reverse proxy with a certificate**, such as Caddy, nginx or Traefik, on a domain you control.
@@ -102,7 +124,7 @@ The one thing that catches people out is not the addon. **A port on an Oracle in
 
 On that second one, mind where the rule goes: there is a `REJECT` line near the end, and anything added below it never matches. Copy the line that allows SSH, change the port on the copy, and leave the SSH line exactly where it is -- getting that wrong locks you out of the instance.
 
-If you would rather not expose a port at all, put the instance behind a Cloudflare Tunnel as described under [https](#stremio-needs-https). Nothing then listens publicly, and you get the https address Stremio needs in the same move.
+If you would rather not expose a port at all, put the instance behind a Cloudflare Tunnel as described under [https](#addresses-and-https). Nothing then listens publicly, and you get the https address Stremio needs in the same move.
 
 ### Node.js
 
@@ -130,7 +152,7 @@ Settings live in `.env`. Copy `.env.example` and edit it, and restart after a ch
 
 | Variable | What it does |
 |---|---|
-| `ADDON_URL` | Your public address, e.g. `https://sports.example.com`. Needed for Stremio (see [https](#stremio-needs-https)). |
+| `ADDON_URL` | Your public address, e.g. `https://sports.example.com`. Needed for Stremio (see [https](#addresses-and-https)). |
 | `AUTH_KEY` | Password for the catalog and `/configure` pages. |
 | `ADMIN_TOKEN` | Password for `/dashboard`. The dashboard stays closed until this is set. |
 | `TZ` | Timezone for kickoff times, for viewers who haven't picked one. |
@@ -210,7 +232,7 @@ StreamFree, TimStreams, Streamed.pk, SportyHunter, WatchFooty, CDNLive, StreamSp
 
 **Two streams buffer at the same moment.** They are probably the same machine reached two ways. The list puts the best stream from each server at the top for that reason, so the second row down is a genuinely different server rather than a second link to the first one.
 
-**Stremio won't install the addon.** It needs an https address; see [Stremio needs https](#stremio-needs-https).
+**Stremio won't install the addon.** Most likely it needs an https address; see [Addresses and https](#addresses-and-https). If it installs and then behaves oddly, see [Stremio support is untested](#stremio-support-is-untested) — the addon has never been run there.
 
 **Covers show only a name for a moment.** The first time a tab opens, the server fetches logos and draws covers. They're cached afterwards -- on the data volume too, so a restart does not draw them again; only an update that changes how cards look draws them once more -- and the server warms them in the background after it starts.
 
@@ -218,9 +240,9 @@ StreamFree, TimStreams, Streamed.pk, SportyHunter, WatchFooty, CDNLive, StreamSp
 
 **A channel disappeared.** Channels with no streams across two checks at least 15 minutes apart are hidden, and they come back once they play again. `HIDE_EMPTY_CHANNELS=0` shows them all.
 
-**Streamed's streams buffer in Nuvio but play in a browser.** Streamed's CDN only answers clients that look like a browser, so the server fetches its video chunks for the player and relays them. Any host that behaves that way is found out by trying one chunk and relayed from then on; every other host's chunks go straight to the player. Relaying costs the server the stream's bandwidth, a few hundred kilobytes every few seconds per viewer (`PROXY_SEGMENT_HOSTS` in `.env.example`).
+**Streamed's streams buffer in Nuvio but play in a browser.** (Measured in Nuvio; the same fix should apply anywhere, but only Nuvio was watched.) Streamed's CDN only answers clients that look like a browser, so the server fetches its video chunks for the player and relays them. Any host that behaves that way is found out by trying one chunk and relayed from then on; every other host's chunks go straight to the player. Relaying costs the server the stream's bandwidth, a few hundred kilobytes every few seconds per viewer (`PROXY_SEGMENT_HOSTS` in `.env.example`).
 
-**A stream microbuffers -- it never really breaks, but it keeps catching itself.** Usually the source, not the connection. Sources here publish a four-segment playlist and some of them publish in bursts: measured on two of three, eight seconds of nothing and then two segments at once. A player starts three segments from the end of a playlist, which is about twelve seconds of video, so an eight-second pause spends most of the cushion and anything else on top of it stalls. Set **Extra Buffer** in `/configure` (or `LIVE_BUFFER_SECONDS` for everyone) and the server hands the player a deeper window of what the source has already published, and tells it to start further back in it. You see the game that much later, and the bursts stop mattering. Sources that delete a segment the moment they stop listing it are found out and left alone.
+**A stream microbuffers -- it never really breaks, but it keeps catching itself.** Usually the source, not the connection. Sources here publish a four-segment playlist and some of them publish in bursts: measured in Nuvio on two of three, eight seconds of nothing and then two segments at once. A player starts three segments from the end of a playlist, which is about twelve seconds of video, so an eight-second pause spends most of the cushion and anything else on top of it stalls. Set **Extra Buffer** in `/configure` (or `LIVE_BUFFER_SECONDS` for everyone) and the server hands the player a deeper window of what the source has already published, and tells it to start further back in it — with `#EXT-X-START`, which ExoPlayer, hls.js and AVPlayer read and Stremio's player is not known to. You see the game that much later, and the bursts stop mattering. Sources that delete a segment the moment they stop listing it are found out and left alone.
 
 **My saved settings were lost after an update.** Profiles are stored in `DATA_DIR`. Compose keeps them on the `aiosports-data` volume. With `docker run`, add `-v aiosports-data:/data -e DATA_DIR=/data`.
 
