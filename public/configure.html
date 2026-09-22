@@ -2492,17 +2492,41 @@
 
     refreshSaveUi().then(showImportBanner);
 
+    // Captured once, not inside the handler: a second click during the two
+    // seconds the button says COPIED would otherwise adopt that as the label
+    // and keep it.
+    const COPY_LABEL = copyBtn.innerText;
+
     copyBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      navigator.clipboard.writeText(currentManifestUrl).then(() => {
-        const originalText = copyBtn.innerText;
+      const done = () => {
         copyBtn.innerText = 'COPIED TO CLIPBOARD!';
         copyBtn.style.background = '#10b981';
         setTimeout(() => {
-          copyBtn.innerText = originalText;
+          copyBtn.innerText = COPY_LABEL;
           copyBtn.style.background = '';
         }, 2000);
-      });
+      };
+      // The same two paths the other two copy buttons take. This one went
+      // straight to navigator.clipboard, which does not exist on a plain-http
+      // origin -- so on exactly the setup the README recommends for Nuvio it
+      // threw and the button looked ignored, which is the one place a button
+      // called COPY LINK FOR NUVIO is needed most.
+      const fallback = () => {
+        const ta = document.createElement('textarea');
+        ta.value = currentManifestUrl;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { if (document.execCommand('copy')) done(); } catch (err) {}
+        document.body.removeChild(ta);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(currentManifestUrl).then(done, fallback);
+      } else {
+        fallback();
+      }
     });
 
     // Typing the first team makes the My Teams tab appear in the list below,
