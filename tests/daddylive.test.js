@@ -186,6 +186,16 @@ function encodeEconfig(obj) {
   await q.getMatches();
   t(2, lists, '  and waits before asking again, rather than asking on every sync');
 
+  // The circuit breaker's own failure: not an error but null, which is how an
+  // unreachable site or a refusal by the home route actually arrives.
+  q = new DL({ circuitBreaker: new CB() });
+  let answer = page;
+  q.fetchChannels = { fire: async () => answer };
+  await q.getMatches();
+  q._list.at -= 7 * 60 * 60 * 1000;
+  answer = null;
+  t(3, (await q.getMatches()).length, 'a breaker that answers null keeps the list too');
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

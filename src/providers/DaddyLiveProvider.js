@@ -176,14 +176,18 @@ class DaddyLiveProvider extends BaseProvider {
     const now = Date.now();
     if (this._list.channels && now - this._list.at < LIST_TTL_MS) return this._list.channels;
     try {
-      const channels = parseChannels(await this.fetchChannels.fire());
+      // The breaker answers a failed or skipped fetch with null rather than an
+      // error, and that is not an empty page: nothing was read at all.
+      const html = await this.fetchChannels.fire();
+      if (!html) throw new Error('no answer from the site (unreachable, or refused by the home route)');
+      const channels = parseChannels(html);
       if (channels.length) {
         this._list = { channels, at: now };
         return channels;
       }
-      console.error(`[${this.name}] channel list had no channels in it; the page has changed`);
+      this.warnOnce('list-empty', 30 * 60 * 1000, 'channel list had no channels in it; the page has changed');
     } catch (err) {
-      console.error(`[${this.name}] channel list failed:`, err.message);
+      this.warnOnce('list-failed', 30 * 60 * 1000, `channel list failed: ${err.message}`);
     }
     // Kept, and asked again in a quarter of an hour rather than on every sync.
     if (this._list.channels) this._list.at = now - LIST_TTL_MS + LIST_RETRY_MS;
