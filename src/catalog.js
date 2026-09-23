@@ -1370,9 +1370,10 @@ async function handleMeta(type, id, config) {
 
   // Prewarm: mint tokens for this match's top sources while the user is still
   // on the detail page, so the eventual click is near-instant. Fire-and-forget.
-  // One nobody streams yet has no source to warm.
+  // One nobody streams yet has no source to warm. A viewer opened this one, so
+  // its on-demand sources are warmed too (see prewarmMatch).
   if (!match._scheduleOnly) {
-    try { prewarmMatch(match, config || {}).catch(() => {}); } catch (_) {}
+    try { prewarmMatch(match, config || {}, undefined, { viewer: true }).catch(() => {}); } catch (_) {}
   }
 
   return { meta: mapMatchToMetaPreview(match, config || {}) };

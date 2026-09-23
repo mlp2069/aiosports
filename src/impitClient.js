@@ -14,7 +14,7 @@
 'use strict';
 
 const { request: undiciRequest, Agent, ProxyAgent } = require('undici');
-const { egressProxyFor } = require('./egress');
+const { egressProxyFor, egressHeaders } = require('./egress');
 
 const { redactUrl } = require('./redact');
 // -- Singleton -----------------------------------------------------------------
@@ -111,7 +111,10 @@ async function readCapped(stream, maxBytes, declaredLength) {
  * @returns {{ ok, status, location, text: () => string, json: () => object }}
  */
 async function safeFetch(url, opts = {}) {
-  const { method = 'GET', headers = {}, body, signal, timeoutMs = 15000, redirect, maxBytes = 0, dispatcher } = opts;
+  const { method = 'GET', body, signal, timeoutMs = 15000, redirect, maxBytes = 0, dispatcher } = opts;
+  // On the home route the User-Agent is the route's, not the caller's: the
+  // token is bound to it (egress.js). Off the route, headers pass untouched.
+  const headers = egressHeaders(url, opts.headers || {});
   // A host behind the home route goes through the tunnel on both paths, and
   // never quietly falls back to a direct request: from here that would only
   // ever be refused, and would look like the source had failed.

@@ -40,7 +40,7 @@ services:
 
         const PORT = Number(process.env.EGRESS_PORT) || 8888;
         const ALLOW = String(process.env.EGRESS_ALLOW ||
-          'assetrage.net,dynproclaim.net,sportsonlinee.click,7odxv0l067ka.net')
+          'dlive.sx,dlstreams.st,assetrage.net,dynproclaim.net,sportsonlinee.click,7odxv0l067ka.net')
           .split(',').map(s => s.trim().toLowerCase().replace(/^\*?\./, '')).filter(Boolean);
         const PORTS = new Set([443, 8443]);
 

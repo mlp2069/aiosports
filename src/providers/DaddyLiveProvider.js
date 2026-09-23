@@ -9,12 +9,23 @@
  * home connection's tokens play. So the embed page and the playlist are both
  * fetched through the WireGuard tunnel to zona (egress.js), and the provider
  * stays silent while that tunnel is down rather than listing channels that
- * could only fail. The listing and the channel pages are fetched directly: they
- * carry nothing tied to an address. So are the video segments, by the player
- * itself -- they carry no token at all.
+ * could only fail. The listing and the channel pages go the same way, though
+ * they carry nothing tied to an address, because the site stopped answering
+ * this server at all (below). Only the video segments are fetched directly,
+ * by the player itself -- they carry no token and play from anywhere.
  *
  * Measured 2026-09-23 from zona: a token zona minted returned a live playlist;
  * the same token from Oracle or the owner's Mac, 403; Oracle's own, 403.
+ *
+ * The site also refuses, at the TCP level, an address that opens its pages in
+ * bulk: a warm-up that opened 125 channels in thirteen minutes got this server
+ * refused outright the same night, on every port, while zona and the Mac were
+ * still served.
+ * So nothing here is opened except because a viewer asked (ON_DEMAND_SOURCES
+ * in streams.js), and the provider itself refuses to open more than
+ * RESOLVES_PER_HOUR channels an hour, one at a time, whoever is asking. The
+ * home connection is the one address whose tokens play; it must never be the
+ * next one refused.
  *
  * This is written from scratch against those measurements rather than ported:
  * upstream's provider is 958 lines built around a Cloudflare Worker pool and
@@ -29,14 +40,30 @@ const MatchEntity = require('../domain/MatchEntity');
 const StreamEntity = require('../domain/StreamEntity');
 const { splitRegion } = require('../channelRegions');
 const { egressAvailable, needsEgress } = require('../egress');
-const { redactUrl } = require('../redact');
+const { safeFetch } = require('../impitClient');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 // A playlist token lasts about six hours. Re-resolving well inside that keeps a
 // channel opened late in the window from inheriting an address about to die;
 // the manifest route re-mints one that dies anyway (remint.js).
 const RESOLVE_TTL_MS = 60 * 60 * 1000;
+// A channel that yielded nothing is not asked again for a while: a viewer
+// retrying a dead channel should not cost the site a page each time.
+const EMPTY_TTL_MS = 10 * 60 * 1000;
 const PAGE_FOLDERS = ['stream', 'cast', 'watch', 'player'];
+// The channel list changes a few times a week. Fetched every six hours rather
+// than on every catalog sync, and the last one that parsed is kept through a
+// failure, so the site being down does not empty the Channels tab.
+const LIST_TTL_MS = 6 * 60 * 60 * 1000;
+const LIST_RETRY_MS = 15 * 60 * 1000;
+// Channels opened per hour, at most. Opening one costs a channel page and an
+// embed page, the second from the home connection. A household flicking
+// through channels opens a few dozen; a sweep opens hundreds.
+const RESOLVES_PER_HOUR = Number(process.env.DADDYLIVE_RESOLVES_PER_HOUR) || 30;
+// Never two at once, and a breath between: a burst is what an abuse filter
+// sees, even when the hourly count is modest.
+const RESOLVE_GAP_MS = Number(process.env.DADDYLIVE_RESOLVE_GAP_MS) || 1500;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function decodeEntities(s) {
   return String(s || '')
@@ -99,7 +126,13 @@ class DaddyLiveProvider extends BaseProvider {
     this.name = 'DaddyLive';
     this.hosts = BaseProvider.hostList('DADDYLIVE_HOSTS', ['dlive.sx', 'dlstreams.st']);
     this._resolved = new Map();   // channel id -> { streams, until }
+    this._inflight = new Map();   // channel id -> the opening under way
     this._warned = new Map();     // what has been said, and when
+    this._list = { channels: null, at: 0 };
+    this._opened = [];            // when each channel was opened, for the hourly cap
+    this._gate = Promise.resolve();
+    this._lastOpenAt = 0;
+    this._folder = PAGE_FOLDERS[0];   // the folder that worked last
 
     this.fetchChannels = this.circuitBreaker.wrap(`${this.name}_channels`, async () => {
       const res = await this.fetchFromHosts('/24-7-channels.php', {
@@ -121,13 +154,7 @@ class DaddyLiveProvider extends BaseProvider {
       this.warnOnce('down', 60 * 60 * 1000, 'home route unavailable (egress stack down or not deployed); DaddyLive skipped');
       return [];
     }
-    let channels = [];
-    try {
-      channels = parseChannels(await this.fetchChannels.fire());
-    } catch (err) {
-      console.error(`[${this.name}] channel list failed:`, err.message);
-      return [];
-    }
+    const channels = await this._channels();
     return channels.map(c => {
       const split = splitRegion(c.name);
       return new MatchEntity({
@@ -144,9 +171,51 @@ class DaddyLiveProvider extends BaseProvider {
     });
   }
 
+  /** The channel list: the saved one while it is fresh, else fetched again. */
+  async _channels() {
+    const now = Date.now();
+    if (this._list.channels && now - this._list.at < LIST_TTL_MS) return this._list.channels;
+    try {
+      const channels = parseChannels(await this.fetchChannels.fire());
+      if (channels.length) {
+        this._list = { channels, at: now };
+        return channels;
+      }
+      console.error(`[${this.name}] channel list had no channels in it; the page has changed`);
+    } catch (err) {
+      console.error(`[${this.name}] channel list failed:`, err.message);
+    }
+    // Kept, and asked again in a quarter of an hour rather than on every sync.
+    if (this._list.channels) this._list.at = now - LIST_TTL_MS + LIST_RETRY_MS;
+    return this._list.channels || [];
+  }
+
+  /** Counts one opening against the hour, or says there is none left. */
+  _takeBudget() {
+    const now = Date.now();
+    while (this._opened.length && now - this._opened[0] >= 60 * 60 * 1000) this._opened.shift();
+    if (this._opened.length >= RESOLVES_PER_HOUR) return false;
+    this._opened.push(now);
+    return true;
+  }
+
+  /** Runs `fn` once every opening before it has finished, and a gap after. */
+  _serial(fn) {
+    const run = this._gate.then(async () => {
+      const wait = this._lastOpenAt + RESOLVE_GAP_MS - Date.now();
+      if (wait > 0) await sleep(wait);
+      try { return await fn(); } finally { this._lastOpenAt = Date.now(); }
+    });
+    this._gate = run.catch(() => {});
+    return run;
+  }
+
   /** The iframe a channel page embeds, trying the folders the site uses. */
   async _embedFor(channelId) {
-    for (const folder of PAGE_FOLDERS) {
+    // The folder that worked last first: the site uses one at a time, so this
+    // is one page per channel rather than up to four.
+    const folders = [this._folder, ...PAGE_FOLDERS.filter(f => f !== this._folder)];
+    for (const folder of folders) {
       const path = `/${folder}/stream-${encodeURIComponent(channelId)}.php`;
       let res;
       try { res = await this.fetchFromHosts(path, { headers: { 'User-Agent': UA }, timeoutMs: 10000 }); }
@@ -154,6 +223,7 @@ class DaddyLiveProvider extends BaseProvider {
       const html = await res.text();
       const m = html.match(/<iframe[^>]+src=["']([^"']+)["']/i);
       if (!m) continue;
+      this._folder = folder;
       const page = `https://${this._activeHost || this.hosts[0]}${path}`;
       const src = m[1].startsWith('//') ? 'https:' + m[1] : new URL(m[1], page).toString();
       return { src, page };
@@ -165,8 +235,29 @@ class DaddyLiveProvider extends BaseProvider {
     const id = String(channelId);
     const hit = this._resolved.get(id);
     if (hit && hit.until > Date.now()) return hit.streams;
+    // Two viewers, or a detail page and its play button, asking for the same
+    // channel at once share one opening.
+    if (this._inflight.has(id)) return this._inflight.get(id);
 
-    if (!(await egressAvailable())) return [];
+    const opening = this._serial(async () => {
+      const again = this._resolved.get(id);
+      if (again && again.until > Date.now()) return again.streams;
+      if (!(await egressAvailable())) return [];
+      if (!this._takeBudget()) {
+        this.warnOnce('budget', 10 * 60 * 1000,
+          `${RESOLVES_PER_HOUR} channels opened in the last hour; holding off until the hour rolls over (DADDYLIVE_RESOLVES_PER_HOUR)`);
+        return [];
+      }
+      const streams = await this._open(id, title);
+      this._resolved.set(id, { streams, until: Date.now() + (streams.length ? RESOLVE_TTL_MS : EMPTY_TTL_MS) });
+      return streams;
+    }).finally(() => this._inflight.delete(id));
+    this._inflight.set(id, opening);
+    return opening;
+  }
+
+  /** One channel, opened: its page, its embed, and the stream the embed names. */
+  async _open(id, title) {
     const embed = await this._embedFor(id);
     if (!embed) return [];
 
@@ -177,9 +268,11 @@ class DaddyLiveProvider extends BaseProvider {
         `embed host ${new URL(embed.src).hostname} is not on the home route; add it to EGRESS_HOSTS and the egress proxy's EGRESS_ALLOW`);
       return [];
     }
+    // Fetched as itself, never through a Cloudflare proxy pool: a token minted
+    // for Cloudflare's address plays nowhere. safeFetch sends it home.
     let html;
     try {
-      const res = await this.proxyFetch(embed.src, { headers: { 'User-Agent': UA, Referer: embed.page }, timeoutMs: 12000 });
+      const res = await safeFetch(embed.src, { headers: { 'User-Agent': UA, Referer: embed.page }, timeoutMs: 12000 });
       if (!res.ok) return [];
       html = await res.text();
     } catch (e) {
@@ -200,16 +293,24 @@ class DaddyLiveProvider extends BaseProvider {
     const referer = origin + '/';
     const { BASE_URL } = require('../config');
     const { manifestPath } = require('../manifestLink');
-    console.log(`[${this.name}] resolved ${title}: ${redactUrl(manifest)}`);
-    const streams = [new StreamEntity({
+    console.log(`[${this.name}] resolved ${title} on ${new URL(manifest).host}`);
+    return [new StreamEntity({
       name: 'DaddyLive',
-      title: `DaddyLive ${title}`,
+      // The channel alone: the row already says DaddyLive beside it.
+      title,
       url: `${BASE_URL}${manifestPath(manifest, referer, origin)}`,
-      behaviorHints: { notWebReady: true },
+      // The player fetches the video itself, straight from DaddyLive, and the
+      // segment host refuses any request without the embed page as Referer
+      // (measured: 403 without, 206 with, from any address and any User-Agent).
+      // Nothing about the token is involved, so the player can send it: both
+      // ExoPlayer and libmpv apply these to every request of the stream. The
+      // alternative, relaying the video, would cost this server its bandwidth.
+      behaviorHints: {
+        notWebReady: true,
+        proxyHeaders: { request: { Referer: referer, Origin: origin } }
+      },
       resolution: 'HD'
     })];
-    this._resolved.set(id, { streams, until: Date.now() + RESOLVE_TTL_MS });
-    return streams;
   }
 }
 

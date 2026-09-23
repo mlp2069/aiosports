@@ -16,7 +16,7 @@ const SOURCE_HARD_DEADLINE_MS = Number(process.env.STREAM_HARD_DEADLINE_MS) || 9
 // handleStream -- and is kept as the point past which a partial list would be
 // served, should that ever be wanted again.
 
-const SOURCE_PRIORITY = { admin: 1, echo: 1, golf: 1, delta: 1, 'watchfooty': 2, 'cdnlive': 3, 'streamsports99': 4, 'streamic': 5, 'totalsportek': 6, 'streamfree': 8, 'timstreams': 9, 'usatv': 10, 'sportyhunter': 12, 'streamsports': 13, 'iptv-org': 14, 'embedindia': 15 };
+const SOURCE_PRIORITY = { admin: 1, echo: 1, golf: 1, delta: 1, 'watchfooty': 2, 'cdnlive': 3, 'streamsports99': 4, 'streamic': 5, 'totalsportek': 6, 'streamfree': 8, 'timstreams': 9, 'usatv': 10, 'daddylive': 11, 'sportyhunter': 12, 'streamsports': 13, 'iptv-org': 14, 'embedindia': 15 };
 
 // What each source is called on a stream row.
 //
@@ -111,6 +111,14 @@ function tallySource(s, cacheKey, opts = {}) {
   if (opts.strict) return '';
   return (s && s._source) || (cacheKey ? String(cacheKey).split(':')[0] : '');
 }
+
+// Sources opened only because a viewer asked: never warmed ahead of a click,
+// never opened by the channel health sweep. DaddyLive refuses an address that
+// opens its pages in bulk -- a warm-up that opened 125 of its channels in
+// thirteen minutes got this server refused outright on 2026-09-23 -- and its
+// tokens can only be minted from the home connection, which must never be the
+// next address it refuses.
+const ON_DEMAND_SOURCES = new Set(['daddylive']);
 
 // Source selection (shared by handleStream and prewarmMatch)
 function selectSources(matchSources, config) {
@@ -568,11 +576,15 @@ async function remintUpstream(deadUrl) {
 // them, so warming three left the warm ones returning instantly and then waiting
 // on the cold tail -- which is the wait the deadline above now truncates. Warm
 // the lot and, in the normal case, the deadline is never reached at all.
-async function prewarmMatch(match, config, topN = 12) {
+//
+// `opts.viewer` says a viewer has just opened this match, which is the one
+// time an on-demand source may be warmed: it is their click, a moment early.
+async function prewarmMatch(match, config, topN = 12, opts = {}) {
   try {
     if (!match || !match.sources || !match.sources.length) return;
     const resolveCache = container.resolve('streamResolveCache');
-    const activeSources = selectSources(match.sources, config || null);
+    const activeSources = selectSources(match.sources, config || null)
+      .filter(src => opts.viewer || !ON_DEMAND_SOURCES.has(src.source));
     const targets = activeSources.slice(0, topN);
     if (targets.length === 0) return;
     console.log(`[Prewarm] minting ${targets.length} sources for ${match.id}`);
@@ -1094,8 +1106,13 @@ async function countChannelStreams(matchId) {
     try { benched = container.resolve('cdnLiveProvider').isBenched(); } catch (e) { benched = true; }
     probeCdn = !benched && takeCdnHealthBudget();
   }
-  const unprobed = hasCdn && !probeCdn;
-  const sources = selectSources(match.sources, {}).filter(src => probeCdn || src.source !== 'cdnlive');
+  // An on-demand source is never opened here (see ON_DEMAND_SOURCES), so a
+  // channel that has one is never judged empty on the others' say-so: the
+  // sweep does not get to hide a stream it did not look at.
+  const onDemand = match.sources.some(src => ON_DEMAND_SOURCES.has(src.source));
+  const unprobed = (hasCdn && !probeCdn) || onDemand;
+  const sources = selectSources(match.sources, {})
+    .filter(src => (probeCdn || src.source !== 'cdnlive') && !ON_DEMAND_SOURCES.has(src.source));
   if (!sources.length) throw new Error('no sources this check probes');
 
   const resolveCache = container.resolve('streamResolveCache');
@@ -1180,5 +1197,6 @@ module.exports = {
   _sourceRank: sourceRank,
   _sortMode: sortMode,
   _mapLimit: mapLimit,
-  _SOURCE_CONCURRENCY: SOURCE_CONCURRENCY
+  _SOURCE_CONCURRENCY: SOURCE_CONCURRENCY,
+  _ON_DEMAND_SOURCES: ON_DEMAND_SOURCES
 };

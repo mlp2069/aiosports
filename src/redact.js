@@ -22,7 +22,9 @@ const SIGNED_SEGMENT = /(\/(?:secure|sig|signature|token|auth|hash)\/)[^/?#]+/gi
 // the difference between "live-event_college-gameday-live-stream" (useful in a
 // log, and not a secret) and "vdTaTEQUANeyjBxjfegpdSKqULtkJWeM" (neither).
 const LONG_OPAQUE = /\/[A-Za-z0-9]{24,}(?=\/|$)/g;
-const SECRET_QUERY = /([?&](?:_t|_e|_n|token|sig|signature|key|auth|hash|md5|expires)=)[^&#]+/gi;
+// `s` is DaddyLive's signature (…/hls/<id>.m3u8?s=<sig>&e=<expiry>). Its `e` is
+// only an expiry, and stays readable: it is what a log is read for.
+const SECRET_QUERY = /([?&](?:_t|_e|_n|s|token|sig|signature|key|auth|hash|md5|expires)=)[^&#]+/gi;
 
 function redactUrl(value) {
   if (typeof value !== 'string' || !value) return value;
