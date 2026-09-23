@@ -467,8 +467,8 @@ function _namesNothing(match) {
 }
 
 class MatchAggregator {
-  constructor({ streamFreeProvider, timStreamsProvider, sportyHunterProvider, watchFootyProvider, totalSportekProvider, cdnLiveProvider, streamSports99Provider, streamicProvider, streamedPkProvider, usaTvProvider, iptvOrgProvider, daddyLiveProvider, cacheService, yamlProviders }) {
-    this.providers = [streamFreeProvider, timStreamsProvider, sportyHunterProvider, watchFootyProvider, totalSportekProvider, cdnLiveProvider, streamSports99Provider, streamicProvider, streamedPkProvider, usaTvProvider, iptvOrgProvider, ...(daddyLiveProvider ? [daddyLiveProvider] : []), ...(yamlProviders || [])];
+  constructor({ streamFreeProvider, timStreamsProvider, sportyHunterProvider, watchFootyProvider, cdnLiveProvider, streamSports99Provider, streamicProvider, streamedPkProvider, usaTvProvider, iptvOrgProvider, daddyLiveProvider, cacheService, yamlProviders }) {
+    this.providers = [streamFreeProvider, timStreamsProvider, sportyHunterProvider, watchFootyProvider, cdnLiveProvider, streamSports99Provider, streamicProvider, streamedPkProvider, usaTvProvider, iptvOrgProvider, ...(daddyLiveProvider ? [daddyLiveProvider] : []), ...(yamlProviders || [])];
     this.cacheService = cacheService;
   }
 

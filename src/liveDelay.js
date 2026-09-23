@@ -2,8 +2,8 @@
  * liveDelay.js — the extra buffer.
  *
  * A live source publishes a short playlist. Measured on this addon's own
- * sources: TotalSportek lists ten segments, forty seconds, and publishes one
- * every 4.02s like a metronome; WatchFooty and TimStreams list four, sixteen
+ * sources: TotalSportek (since removed) listed ten segments, forty seconds,
+ * and published one every 4.02s like a metronome; WatchFooty and TimStreams list four, sixteen
  * and thirteen seconds, and publish in bursts -- eight seconds of nothing,
  * then two segments at once, seven times in under two minutes.
  *

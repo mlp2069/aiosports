@@ -16,7 +16,7 @@ const SOURCE_HARD_DEADLINE_MS = Number(process.env.STREAM_HARD_DEADLINE_MS) || 9
 // handleStream -- and is kept as the point past which a partial list would be
 // served, should that ever be wanted again.
 
-const SOURCE_PRIORITY = { admin: 1, echo: 1, golf: 1, delta: 1, 'watchfooty': 2, 'cdnlive': 3, 'streamsports99': 4, 'streamic': 5, 'totalsportek': 6, 'streamfree': 8, 'timstreams': 9, 'usatv': 10, 'daddylive': 11, 'sportyhunter': 12, 'streamsports': 13, 'iptv-org': 14, 'embedindia': 15 };
+const SOURCE_PRIORITY = { admin: 1, echo: 1, golf: 1, delta: 1, 'watchfooty': 2, 'cdnlive': 3, 'streamsports99': 4, 'streamic': 5, 'streamfree': 8, 'timstreams': 9, 'usatv': 10, 'daddylive': 11, 'sportyhunter': 12, 'streamsports': 13, 'iptv-org': 14, 'embedindia': 15 };
 
 // What each source is called on a stream row.
 //
@@ -28,7 +28,7 @@ const SOURCE_PRIORITY = { admin: 1, echo: 1, golf: 1, delta: 1, 'watchfooty': 2,
 const PROVIDER_NAMES = {
   streamedpk: 'Streamed.pk',
   admin: 'Streamed.pk', echo: 'Streamed.pk', delta: 'Streamed.pk', golf: 'Streamed.pk',
-  watchfooty: 'WatchFooty', cdnlive: 'CDNLiveTV', totalsportek: 'TotalSportek',
+  watchfooty: 'WatchFooty', cdnlive: 'CDNLiveTV',
   streamsports99: 'StreamSports99', streamsports: 'StreamSports',
   streamic: 'Streamic', streamfree: 'StreamFree', timstreams: 'TimStreams',
   sportyhunter: 'SportyHunter', usatv: 'USA TV', 'iptv-org': 'Direct IPTV',
@@ -162,7 +162,7 @@ function selectSources(matchSources, config) {
 
   if (config && typeof config.sources === 'string') {
     const enabled = config.sources.split(',');
-    const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'totalsportek', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedindia', 'embedst', 'streamedpk', 'usatv', 'daddylive'];
+    const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedindia', 'embedst', 'streamedpk', 'usatv', 'daddylive'];
     return sortedSources.filter(src => {
       if (src.source.startsWith('yaml_')) return true;
       const isFallback = KNOWN_FALLBACKS.includes(src.source);
@@ -173,7 +173,7 @@ function selectSources(matchSources, config) {
     });
   }
 
-  const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'totalsportek', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedst', 'streamedpk', 'usatv', 'daddylive'];
+  const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedst', 'streamedpk', 'usatv', 'daddylive'];
   return sortedSources.filter(src => {
     if (src.source.startsWith('yaml_')) return true;
     return KNOWN_FALLBACKS.includes(src.source);
@@ -205,9 +205,6 @@ async function resolveSource(src, match, config, opts = {}) {
 
     } else if (sourceName === 'watchfooty') {
       const provider = container.resolve('watchFootyProvider');
-      resStreams = await provider.resolveStream(src.id, match.category, match.title);
-    } else if (sourceName === 'totalsportek') {
-      const provider = container.resolve('totalSportekProvider');
       resStreams = await provider.resolveStream(src.id, match.category, match.title);
     } else if (sourceName === 'cdnlive') {
       const provider = container.resolve('cdnLiveProvider');

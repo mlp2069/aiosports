@@ -1198,7 +1198,7 @@ app.get(['/api/manifest', '/api/manifest.m3u8'], async (req, res) => {
         } catch (err) {
           // A refusal, or a 200 that is not a playlist, is how a source says
           // the token in the address has expired -- measured: TotalSportek's
-          // lasts about thirty minutes, which is halfway through a match. The
+          // (since removed) lasted about thirty minutes, halfway through a match. The
           // stream is still on; only the address is stale. Re-resolving the
           // source produces the same feed under a fresh address, and the
           // player never learns anything happened (remint.js).

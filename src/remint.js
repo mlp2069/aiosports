@@ -2,9 +2,10 @@
  * remint.js — a stream whose token has expired is not a dead stream.
  *
  * Several sources hand out a playlist address that stops working after a while.
- * Measured on this addon's own rows: TotalSportek's carries `?e=` and dies
- * about thirty minutes after it is minted, which is halfway through a football
- * match; WatchFooty puts an expiry in the path and lasts six hours. When that
+ * Measured on this addon's own rows: TotalSportek's (a source since removed)
+ * carried `?e=` and died about thirty minutes after it was minted, halfway
+ * through a football match; WatchFooty puts an expiry in the path and lasts
+ * six hours; DaddyLive's carries `e=` and lasts about six. When that
  * moment arrives the CDN answers 403 -- or, on the hosts that do it politely,
  * 200 with a body that is not a playlist -- and the player stops. Asking again
  * does not help, because the address itself is what has gone stale.
@@ -19,8 +20,8 @@
  * of date -- an address is reduced to its skeleton: the parts that identify the
  * feed, with the parts that identify the moment removed. Path segments that are
  * an epoch or a long opaque blob go; query parameters whose names are the usual
- * words for a token go; everything else stays. TotalSportek's `path=<hash>` is
- * kept, so the same feed is matched exactly, while its `e` and `sig` are
+ * words for a token go; everything else stays. TotalSportek's `path=<hash>` was
+ * kept, so the same feed was matched exactly, while its `e` and `sig` were
  * dropped. WatchFooty's slug and stream number are kept while its token and
  * expiry are dropped.
  *
