@@ -452,6 +452,18 @@
             source publishing in bursts. Starting further behind the live edge rides those out, at the cost
             of seeing everything that much later. Off plays as close to live as the source allows.</span>
         </div>
+
+        <div class="field">
+          <span class="field__label" id="playerLabel">Where you watch</span>
+          <div class="segmented" id="player" role="group" aria-labelledby="playerLabel">
+            <button type="button" class="toggle segmented__option active" data-value="auto">Automatic</button>
+            <button type="button" class="toggle segmented__option" data-value="exo">TV &amp; Android</button>
+            <button type="button" class="toggle segmented__option" data-value="mpv">Mac, PC &amp; iPhone</button>
+          </div>
+          <span class="field__hint">A few sources disguise their video as images. The TV and Android apps play it
+            anyway; the desktop and iPhone apps refuse it, so for them the server hands the video over cleanly.
+            Automatic recognises which app is asking, so one install works on all of them.</span>
+        </div>
       </div>
     </details>
 
@@ -1176,6 +1188,24 @@
     const paintBuffer = (value) => bufferRow.querySelectorAll('.toggle')
       .forEach(t => t.classList.toggle('active', t.dataset.value === value));
 
+    // Where you watch. Automatic carries nothing: the server tells the players
+    // apart from their own requests, and a link without it behaves exactly as
+    // one made before this setting existed.
+    const playerRow = document.getElementById('player');
+    playerRow.addEventListener('click', (e) => {
+      const btn = e.target.closest('.toggle');
+      if (!btn) return;
+      e.preventDefault();
+      playerRow.querySelectorAll('.toggle').forEach(t => t.classList.toggle('active', t === btn));
+      updateLink();
+    });
+    const playerValue = () => {
+      const active = playerRow.querySelector('.toggle.active');
+      return active ? active.dataset.value : 'auto';
+    };
+    const paintPlayer = (value) => playerRow.querySelectorAll('.toggle')
+      .forEach(t => t.classList.toggle('active', t.dataset.value === value));
+
     // Addon identity, edited in a dialog rather than by typing into the heading.
     // A heading that is secretly a text field is a heading people do not realise
     // they can change; a pencil says so.
@@ -1416,6 +1446,8 @@
       ? String(existingConfig.buffer)
       : '0');
 
+    paintPlayer(existingConfig.player === 'exo' || existingConfig.player === 'mpv' ? existingConfig.player : 'auto');
+
     // The tab list comes from the addon itself, asked for with no sports key so
     // nothing is filtered by a saved selection -- but with a placeholder team,
     // which is the only way to be handed every tab. The server drops My Teams
@@ -1535,6 +1567,9 @@
       // Carried once it has been chosen -- including off, which is a choice
       // an instance-wide default has to lose to.
       if (bufferTouched || existingConfig.buffer !== undefined) config.buffer = bufferValue();
+
+      // Only a choice other than Automatic is carried.
+      if (playerValue() === 'exo' || playerValue() === 'mpv') config.player = playerValue();
 
       // 12-hour is the default, so only 24 needs carrying.
       if (timeFormatValue() === '24') config.timeFormat = '24';
@@ -1847,7 +1882,7 @@
     const KNOWN_KEYS = [
       'teams', 'markets', 'timezone', 'sports', 'sources', 'sourceOrder', 'streamOrder', 'sortBy', 'timeFormat',
       'addonName', 'addonLogo', 'addonDescription', 'catalogOrder', 'catalogNames', 'catalogOptions',
-      'buffer'
+      'buffer', 'player'
     ];
     // Not secret -- this addon holds no keys or tokens -- but personal: together
     // they say roughly where someone lives and what they follow. In by default,
@@ -1955,7 +1990,8 @@
       teams: 'Favourite teams', markets: 'Local channels', timezone: 'Timezone', sports: 'Sports', sources: 'Sources',
       sourceOrder: 'Source order', streamOrder: 'Stream order', timeFormat: 'Clock',
       addonName: 'Addon name', addonLogo: 'Addon logo', addonDescription: 'Addon description',
-      catalogOrder: 'Tab order', catalogNames: 'Renamed tabs', catalogOptions: 'Per-tab settings'
+      catalogOrder: 'Tab order', catalogNames: 'Renamed tabs', catalogOptions: 'Per-tab settings',
+      player: 'Where you watch'
     };
 
     function paintExportDialog() {
@@ -2131,6 +2167,9 @@
       const streamOrder = str('streamOrder');
       if (streamOrder === 'web' || streamOrder === 'none') clean.streamOrder = streamOrder;
 
+      const player = str('player');
+      if (player === 'exo' || player === 'mpv') clean.player = player;
+
       if (str('timeFormat') === '24') clean.timeFormat = '24';
 
       const name = str('addonName');
@@ -2287,6 +2326,8 @@
       line(impPreview, 'Stream order — ' + (clean.streamOrder === 'web' ? 'web streams first'
         : clean.streamOrder === 'none' ? 'no preference' : 'direct streams first'));
       line(impPreview, 'Clock — ' + (clean.timeFormat === '24' ? '24-hour' : '12-hour'));
+      line(impPreview, 'Where you watch — ' + (clean.player === 'exo' ? 'TV & Android'
+        : clean.player === 'mpv' ? 'Mac, PC & iPhone' : 'automatic'));
       line(impPreview, 'Timezone — ' + (clean.timezone || 'this browser’s'));
 
       const bits = [];
@@ -2567,7 +2608,7 @@
     // click handlers, because the behaviour in those is hard-won and is left
     // exactly as it was.
     (() => {
-      const rows = [timeFormatRow, sortByRow, bufferRow, streamOrderRow];
+      const rows = [timeFormatRow, sortByRow, bufferRow, streamOrderRow, playerRow];
       const sync = row => row.querySelectorAll('.toggle').forEach(t =>
         t.setAttribute('aria-pressed', String(t.classList.contains('active'))));
       for (const row of rows) {

@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { manifestPath, segmentPath } = require('./manifestLink');
+const { manifestPath, segmentPath, unwrapPath } = require('./manifestLink');
 
 const DEFAULT_HOSTS = ['strmd.st'];
 
@@ -80,8 +80,14 @@ const OPAQUE = /^(data|skd|blob|about):/i;
  * `hosts`, when given, are the exact hosts whose media is relayed (what
  * segmentPolicy decided for this playlist); without it the configured
  * domains apply.
+ *
+ * `unwrap` is for a player that trusts a file's own bytes over the playlist
+ * (libmpv -- see segmentUnwrap.js). Its disguised chunks go through the relay
+ * as the transport stream inside them, and the variant playlists it is sent
+ * to say so, so the choice survives the second hop. Without it, nothing here
+ * changes by a byte: that is the path every other player is on.
  */
-function rewritePlaylist(body, { targetUrl, finalUrl, referer = '', origin = '', hosts, buf = 0 } = {}) {
+function rewritePlaylist(body, { targetUrl, finalUrl, referer = '', origin = '', hosts, buf = 0, unwrap = false } = {}) {
   const exact = hosts ? new Set(hosts.map(h => String(h).toLowerCase())) : null;
   const relayed = (host) => (exact ? exact.has(host.toLowerCase()) : needsSegmentProxy(host));
   const absolute = (raw) => absoluteEntry(raw, targetUrl, finalUrl);
@@ -91,14 +97,19 @@ function rewritePlaylist(body, { targetUrl, finalUrl, referer = '', origin = '',
     // the window is deepened in (liveDelay.js).
     if (abs.includes('.m3u8')) {
       const link = manifestPath(abs, referer, origin);
-      return buf > 0 ? `${link}&buf=${buf}` : link;
+      const withBuf = buf > 0 ? `${link}&buf=${buf}` : link;
+      return unwrap ? `${withBuf}&pl=mpv` : withBuf;
     }
     let host = '';
     try { host = new URL(abs).hostname; } catch (err) { return abs; }
+    const disguised = (abs.includes('.image') || abs.includes('.js')) && !abs.includes('.ts');
+    // Media only: a key or an init section is not a transport stream, and
+    // cutting bytes off one would corrupt it.
+    if (unwrap && disguised && !kind) return unwrapPath(abs, referer, origin);
     if (relayed(host)) return segmentPath(abs, referer, origin, kind);
     // A segment named .image or .js is a segment all the same; the fragment
     // tells a player that reads the extension so.
-    if ((abs.includes('.image') || abs.includes('.js')) && !abs.includes('.ts')) return abs + '#.ts';
+    if (disguised) return abs + '#.ts';
     return abs;
   };
   const rewrite = (raw, kind = '') => (OPAQUE.test(raw.trim()) ? raw : route(absolute(raw), kind));

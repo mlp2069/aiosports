@@ -126,6 +126,17 @@ function segmentPath(url, referer = '', origin = '', kind = '') {
   return `/api/segment/${name}` + query(url, referer, origin, 'segment');
 }
 
+/**
+ * A relay link for a disguised chunk that is to be handed over as the
+ * transport stream inside it (segmentUnwrap.js). Signed under its own kind, so
+ * an ordinary relay link cannot be turned into one by adding a parameter, and
+ * this one cannot be spent as an ordinary one: each verifies only as what it
+ * was minted for. Named .ts because that is what the player will receive.
+ */
+function unwrapPath(url, referer = '', origin = '') {
+  return '/api/segment/seg.ts' + query(url, referer, origin, 'unwrap') + '&u=1';
+}
+
 function verifyQuery(q, kind) {
   const str = v => (typeof v === 'string' ? v : null);
   const url = str(q.url);
@@ -141,5 +152,6 @@ function verifyQuery(q, kind) {
 /** Whether a request's url, referer and origin are the ones that were signed. */
 function verifyManifestQuery(q) { return verifyQuery(q, ''); }
 function verifySegmentQuery(q) { return verifyQuery(q, 'segment'); }
+function verifyUnwrapQuery(q) { return verifyQuery(q, 'unwrap'); }
 
-module.exports = { manifestPath, segmentPath, verifyManifestQuery, verifySegmentQuery };
+module.exports = { manifestPath, segmentPath, unwrapPath, verifyManifestQuery, verifySegmentQuery, verifyUnwrapQuery };

@@ -1018,6 +1018,17 @@ async function handleStream(type, id, config) {
     }
   }
 
+  // Where this viewer watches, when they have said (configure.html). The
+  // manifest proxy works it out from the player's own request otherwise
+  // (segmentUnwrap.js), so "automatic" carries nothing and a link minted
+  // before this setting existed behaves exactly as it did.
+  const player = config && config.player;
+  if (player === 'mpv' || player === 'exo') {
+    for (const s of streams) {
+      if (s.url && s.url.includes('/api/manifest') && !/[?&]pl=/.test(s.url)) s.url += `&pl=${player}`;
+    }
+  }
+
   // Verification now happens once per mint (mintVerifiedSources), not per request.
   // Adaptive per-source TTLs keep tokens fresh, so clients may hold the list 30s.
   return {

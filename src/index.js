@@ -991,7 +991,24 @@ app.get('/img/matchup', async (req, res) => {
 // absent, all fetches silently use undici — streams continue to work.
 const { safeFetch: _safeFetch, getImpit: _getImpit } = require('./impitClient');
 const { assertPublicUrl, publicAgent } = require('./netGuard');
-const { verifyManifestQuery, verifySegmentQuery } = require('./manifestLink');
+const { verifyManifestQuery, verifySegmentQuery, verifyUnwrapQuery } = require('./manifestLink');
+const { createUnwrap, playerMode } = require('./segmentUnwrap');
+
+// The playback path used to be silent everywhere except a hard failure: a
+// stream limping along on stale playlists, or a relay refusing chunks, left
+// nothing behind, so a viewer's "it kept dropping" could not be answered from
+// the log at all. These lines are what answers it now -- once per stream per
+// window rather than once per poll, because a stream in trouble is polled
+// every few seconds and would otherwise bury everything else.
+const _logLast = new Map();
+function logEvery(key, ms, ...args) {
+  const now = Date.now();
+  if ((_logLast.get(key) || 0) + ms > now) return;
+  if (_logLast.size > 5000) _logLast.clear();
+  _logLast.set(key, now);
+  console.log(...args);
+}
+const hostLabel = u => { try { return new URL(u).hostname; } catch (e) { return 'upstream'; } };
 const { rewriteInternalUrl } = require('./internalUrl');
 const { rewritePlaylist, absoluteEntry } = require('./playlistRewrite');
 const liveDelay = require('./liveDelay');
@@ -1134,7 +1151,16 @@ app.get(['/api/manifest', '/api/manifest.m3u8'], async (req, res) => {
   // it; what goes out differs by the buffer asked for, so the cache holds one
   // body per buffer.
   const streamKey = `${targetUrl}|${referer}|${origin}`;
-  const cacheKey = `${streamKey}|${buf}`;
+  // A libmpv player is handed a different playlist (segmentUnwrap.js), so it
+  // gets its own slot. Sharing one would serve a Mac-shaped playlist to the TV
+  // -- or the TV's to the Mac -- depending only on which asked first. Every
+  // other player keeps exactly the key it always had.
+  const player = playerMode(req.query, req.headers['user-agent']);
+  const cacheKey = player ? `${streamKey}|${buf}|${player}` : `${streamKey}|${buf}`;
+  if (player) {
+    logEvery(`mpv:${streamKey}`, 10 * 60 * 1000,
+      `[ManifestProxy] libmpv player on ${hostLabel(targetUrl)} (${String(req.headers['user-agent'] || 'no user-agent').slice(0, 40)}${req.query.pl ? ', chosen in setup' : ''}): disguised chunks unwrapped`);
+  }
   const entry = manifestCacheGet(cacheKey);
   if (entry && entry.negative) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1218,7 +1244,7 @@ app.get(['/api/manifest', '/api/manifest.m3u8'], async (req, res) => {
           if (gone.length) liveDelay.askRetention(media(gone[0].uri), askReferer, askOrigin).catch(() => {});
         }
 
-        const rewrittenResult = rewritePlaylist(buffered, { targetUrl: askUrl, finalUrl, referer: askReferer, origin: askOrigin, hosts, buf });
+        const rewrittenResult = rewritePlaylist(buffered, { targetUrl: askUrl, finalUrl, referer: askReferer, origin: askOrigin, hosts, buf, unwrap: player === 'mpv' });
         manifestCacheSet(cacheKey, rewrittenResult);
         return rewrittenResult;
       })().finally(() => {
@@ -1241,6 +1267,8 @@ app.get(['/api/manifest', '/api/manifest.m3u8'], async (req, res) => {
     // stumbling -- so it keeps the full quiet period and the 404 that lets a
     // player fail over to another source.
     if (err.message === 'Upstream returned non-m3u8 body') {
+      logEvery(`gone:${streamKey}`, 60 * 1000,
+        `[ManifestProxy] stream gone on ${hostLabel(targetUrl)}: upstream answered with something that is not a playlist`);
       manifestCacheSetNegative(cacheKey, 404, 'Stream not found or expired');
       return res.status(404).send('Stream not found or expired');
     }
@@ -1250,6 +1278,11 @@ app.get(['/api/manifest', '/api/manifest.m3u8'], async (req, res) => {
     // player re-reads a moment later and carries on.
     const stale = manifestLastGood(cacheKey);
     if (stale) {
+      // The viewer is still watching, on a playlist that has stopped moving.
+      // A few of these in a row is a stream about to drop; this line is how
+      // that shows up afterwards instead of not at all.
+      logEvery(`stale:${streamKey}`, 60 * 1000,
+        `[ManifestProxy] serving last good playlist for ${hostLabel(targetUrl)}: ${String(err.message).slice(0, 80)}`);
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Cache-Control', 'no-store');
@@ -1340,9 +1373,16 @@ async function relaySegment(req, res) {
   // relay fetching whatever it was given from the owner's connection. And only
   // for a host whose media is relayed as things stand: a link for any other is
   // stale, or the relay has been switched off since it was minted.
-  if (!verifySegmentQuery(req.query)) return res.status(403).send('Invalid stream link');
+  //
+  // An unwrap link is the one exception to the host list. It is minted only
+  // for a disguised chunk in a playlist this server rewrote for a libmpv
+  // player (segmentUnwrap.js), and its own signature -- a separate kind, so an
+  // ordinary relay link cannot be turned into one -- is what authorises it.
+  // The host behind it answers any player, so it is on no relay list.
+  const unwrap = req.query.u === '1' && verifyUnwrapQuery(req.query);
+  if (!unwrap && !verifySegmentQuery(req.query)) return res.status(403).send('Invalid stream link');
   const firstHost = hostOfUrl(req.query.url);
-  if (!isRelayedHost(firstHost)) return res.status(403).send('Not a relayed host');
+  if (!unwrap && !isRelayedHost(firstHost)) return res.status(403).send('Not a relayed host');
 
   const address = String(req.ip || '').replace(/^::ffff:/, '');
   const mine = segmentsByAddress.get(address) || 0;
@@ -1370,7 +1410,10 @@ async function relaySegment(req, res) {
     const headers = { 'User-Agent': SEGMENT_UA };
     if (req.query.referer) headers.Referer = req.query.referer;
     if (req.query.origin) headers.Origin = req.query.origin;
-    if (typeof req.headers.range === 'string') headers.Range = req.headers.range;
+    // Not for an unwrap: the disguise is at the head of the chunk and has to
+    // be seen to be cut off, and a range asked of the stripped file would be
+    // in the wrong coordinates upstream. The whole chunk is fetched instead.
+    if (!unwrap && typeof req.headers.range === 'string') headers.Range = req.headers.range;
 
     // Redirects followed one hop at a time, so every address is checked, not
     // just the first -- and kept to the CDN, or a host relayed anyway. A CDN
@@ -1395,6 +1438,8 @@ async function relaySegment(req, res) {
     if (!upstream) return res.status(502).send('Too many redirects');
     if (upstream.status >= 400) {
       dropBody(upstream.body);
+      logEvery(`relay:${firstHost}:${upstream.status}`, 60 * 1000,
+        `[SegmentRelay] ${firstHost} refused a chunk: ${upstream.status}`);
       // A 403 or 404 is the upstream's answer about this chunk, and a player
       // handles either; anything else is this relay's problem to report.
       return res.status(upstream.status === 403 || upstream.status === 404 ? upstream.status : 502).send('Segment unavailable');
@@ -1421,14 +1466,19 @@ async function relaySegment(req, res) {
       return res.status(404).send('Segment unavailable');
     }
 
-    res.status(upstream.status === 206 ? 206 : 200);
+    res.status(!unwrap && upstream.status === 206 ? 206 : 200);
     const type = String(upstream.header('content-type') || 'video/mp2t').split(';')[0].trim();
-    res.setHeader('Content-Type', SEGMENT_TYPES.test(type) ? type : 'application/octet-stream');
+    // What arrives labelled image/webp leaves as what it is.
+    res.setHeader('Content-Type', unwrap ? 'video/mp2t' : (SEGMENT_TYPES.test(type) ? type : 'application/octet-stream'));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
-    for (const name of ['content-length', 'content-range', 'accept-ranges']) {
-      const v = upstream.header(name);
-      if (v) res.setHeader(name, v);
+    // Cutting the disguise off changes the length and shifts every offset, so
+    // the upstream's own length and range would describe a different file.
+    if (!unwrap) {
+      for (const name of ['content-length', 'content-range', 'accept-ranges']) {
+        const v = upstream.header(name);
+        if (v) res.setHeader(name, v);
+      }
     }
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1443,7 +1493,15 @@ async function relaySegment(req, res) {
         cb(null, chunk);
       }
     });
-    await _streamPromises.pipeline(upstream.body, cap, res);
+    if (unwrap) {
+      const strip = createUnwrap((cut, found) => {
+        if (cut) logEvery(`unwrap:${firstHost}:${cut}`, 10 * 60 * 1000, `[SegmentRelay] ${firstHost}: cut a ${cut}-byte disguise off its chunks`);
+        else if (!found) logEvery(`unwrap?:${firstHost}`, 10 * 60 * 1000, `[SegmentRelay] ${firstHost}: no transport stream found in a chunk; passed through as it came`);
+      });
+      await _streamPromises.pipeline(upstream.body, strip, cap, res);
+    } else {
+      await _streamPromises.pipeline(upstream.body, cap, res);
+    }
   } catch (err) {
     // The pipeline destroys `res` on any error, so its state says nothing
     // about who left. A player that went away is not worth a line in the log;
