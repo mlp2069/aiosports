@@ -1,34 +1,35 @@
-# AIOSports egress -- the route home for DaddyLive. Paste as a Komodo stack
-# named "egress" on the Oracle server, then Deploy.
-#
-# dl-egress: WireGuard client joined to zona as peer 4. Its private key lives in
-#   /data/egress/wg/wg_confs/wg0.conf on the server (not in git: it's a secret).
-# dl-proxy:  CONNECT proxy sharing dl-egress's network, so it reaches the internet
-#   from zona's address. Only DaddyLive's embed and playlist hosts are allowed.
-# AIOSports reaches it as http://dl-egress:8888 on the sports network. Nothing
-# is published on the host. Source: mlp2069/aiosports deploy/egress/.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   dl-egress:
     image: lscr.io/linuxserver/wireguard:latest
     container_name: dl-egress
-    cap_add: [NET_ADMIN]
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
     environment:
+      - TZ=${TZ}
       - PUID=1000
       - PGID=1000
-      - TZ=Etc/UTC
     volumes:
       - /data/egress/wg:/config
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
-    networks: [sports]
-    restart: unless-stopped
+    networks:
+      - sports
+    logging: *default-logging
 
   dl-proxy:
     image: node:22-alpine
     container_name: dl-proxy
-    network_mode: service:dl-egress
-    depends_on: [dl-egress]
     restart: unless-stopped
+    network_mode: service:dl-egress
+    depends_on:
+      - dl-egress
     command:
       - node
       - -e
@@ -82,8 +83,9 @@ services:
 
         server.listen(PORT, '0.0.0.0', () => console.log(`[egress] listening on :$${PORT}, allowing $${ALLOW.join(', ')}`));
         setInterval(() => { if (open) console.log(`[egress] $${open} tunnel(s) open`); }, 10 * 60 * 1000).unref();
+    logging: *default-logging
 
 networks:
   sports:
-    external: true
     name: sports_default
+    external: true
