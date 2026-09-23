@@ -32,7 +32,7 @@ const PROVIDER_NAMES = {
   streamsports99: 'StreamSports99', streamsports: 'StreamSports',
   streamic: 'Streamic', streamfree: 'StreamFree', timstreams: 'TimStreams',
   sportyhunter: 'SportyHunter', usatv: 'USA TV', 'iptv-org': 'Direct IPTV',
-  embedindia: 'EmbedIndia', embedst: 'Embed.st'
+  embedindia: 'EmbedIndia', embedst: 'Embed.st', daddylive: 'DaddyLive'
 };
 
 // A source nothing here has a name for. Vague, and deliberately so: a row that
@@ -154,7 +154,7 @@ function selectSources(matchSources, config) {
 
   if (config && typeof config.sources === 'string') {
     const enabled = config.sources.split(',');
-    const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'totalsportek', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedindia', 'embedst', 'streamedpk', 'usatv'];
+    const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'totalsportek', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedindia', 'embedst', 'streamedpk', 'usatv', 'daddylive'];
     return sortedSources.filter(src => {
       if (src.source.startsWith('yaml_')) return true;
       const isFallback = KNOWN_FALLBACKS.includes(src.source);
@@ -165,7 +165,7 @@ function selectSources(matchSources, config) {
     });
   }
 
-  const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'totalsportek', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedst', 'streamedpk', 'usatv'];
+  const KNOWN_FALLBACKS = ['watchfooty', 'cdnlive', 'streamsports99', 'streamic', 'totalsportek', 'streamfree', 'timstreams', 'sportyhunter', 'streamsports', 'iptv-org', 'embedst', 'streamedpk', 'usatv', 'daddylive'];
   return sortedSources.filter(src => {
     if (src.source.startsWith('yaml_')) return true;
     return KNOWN_FALLBACKS.includes(src.source);
@@ -187,6 +187,9 @@ async function resolveSource(src, match, config, opts = {}) {
       resStreams = await provider.resolveStream(src.id, sfCategory, match.title);
     } else if (sourceName === 'timstreams') {
       const provider = container.resolve('timStreamsProvider');
+      resStreams = await provider.resolveStream(src.id, match.category, match.title);
+    } else if (sourceName === 'daddylive') {
+      const provider = container.resolve('daddyLiveProvider');
       resStreams = await provider.resolveStream(src.id, match.category, match.title);
     } else if (sourceName === 'sportyhunter') {
       const provider = container.resolve('sportyHunterProvider');

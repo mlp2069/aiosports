@@ -20,6 +20,7 @@ const EmbedIndiaProvider = require('./providers/EmbedIndiaProvider');
 const EmbedStProvider = require('./providers/EmbedStProvider');
 const StreamedPkProvider = require('./providers/StreamedPkProvider');
 const UsaTvProvider = require('./providers/UsaTvProvider');
+const DaddyLiveProvider = require('./providers/DaddyLiveProvider');
 
 const YamlProviderBuilder = require('./services/YamlProviderBuilder');
 const StreamResolveCache = require('./services/StreamResolveCache');
@@ -58,6 +59,7 @@ container.register({
   embedIndiaProvider: asClass(EmbedIndiaProvider).singleton(),
   embedStProvider: asClass(EmbedStProvider).singleton(),
   streamedPkProvider: asClass(StreamedPkProvider).singleton(),
+  daddyLiveProvider: asClass(DaddyLiveProvider).singleton(),
   usaTvProvider: asClass(UsaTvProvider).singleton(),
   yamlProviders: asValue(yamlProviders)
 });

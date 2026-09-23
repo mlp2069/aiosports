@@ -13,7 +13,8 @@
 
 'use strict';
 
-const { request: undiciRequest, Agent } = require('undici');
+const { request: undiciRequest, Agent, ProxyAgent } = require('undici');
+const { egressProxyFor } = require('./egress');
 
 const { redactUrl } = require('./redact');
 // -- Singleton -----------------------------------------------------------------
@@ -33,6 +34,30 @@ function getImpit() {
     console.warn(`[impitClient] impit unavailable (${e.message}). All requests will use undici fallback - streams will still work.`);
   }
   return _impitInstance;
+}
+
+// -- The home route (egress.js) -----------------------------------------------
+// A host that only answers a home connection is reached through the WireGuard
+// tunnel's proxy, by both clients. One instance per proxy, made on first use.
+const _egressImpit = new Map();
+const _egressAgent = new Map();
+function egressImpit(proxyUrl) {
+  if (getImpit() === null) return null;   // impit unavailable here at all
+  if (!_egressImpit.has(proxyUrl)) {
+    const { Impit } = require('impit');
+    _egressImpit.set(proxyUrl, new Impit({ proxyUrl }));
+  }
+  return _egressImpit.get(proxyUrl);
+}
+function egressAgent(proxyUrl) {
+  if (!_egressAgent.has(proxyUrl)) {
+    _egressAgent.set(proxyUrl, new ProxyAgent({
+      uri: proxyUrl,
+      connect: { timeout: 5000, rejectUnauthorized: false },
+      requestTls: { rejectUnauthorized: false }
+    }));
+  }
+  return _egressAgent.get(proxyUrl);
 }
 
 // -- Shared undici keep-alive agent -------------------------------------------
@@ -87,7 +112,11 @@ async function readCapped(stream, maxBytes, declaredLength) {
  */
 async function safeFetch(url, opts = {}) {
   const { method = 'GET', headers = {}, body, signal, timeoutMs = 15000, redirect, maxBytes = 0, dispatcher } = opts;
-  const impit = getImpit();
+  // A host behind the home route goes through the tunnel on both paths, and
+  // never quietly falls back to a direct request: from here that would only
+  // ever be refused, and would look like the source had failed.
+  const via = egressProxyFor(url);
+  const impit = via ? egressImpit(via) : getImpit();
 
   // One budget for the whole call, not one per attempt. The fallback below used
   // to start a fresh full timeout after impit had already spent one, so a
@@ -174,7 +203,10 @@ async function safeFetch(url, opts = {}) {
     signal: signal ? AbortSignal.any([signal, budget]) : budget,
     headersTimeout: left,
     bodyTimeout: left,
-    dispatcher: dispatcher || _undiciAgent,
+    // The caller's dispatcher is replaced on the home route: the SSRF guard
+    // agent refuses private addresses, and the proxy is one. The address being
+    // fetched was already checked by the caller; the proxy has its own list.
+    dispatcher: via ? egressAgent(via) : (dispatcher || _undiciAgent),
   });
   const textData = maxBytes
     ? await readCapped(res.body, maxBytes, res.headers['content-length'])

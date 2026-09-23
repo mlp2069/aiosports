@@ -1,0 +1,44 @@
+# DaddyLive egress — the one route that leaves from zona's home connection.
+#
+# Deploy this as its own Komodo stack, pointed at this folder of the repo.
+# Two containers sharing one network namespace: a WireGuard client connected
+# to zona, and a CONNECT proxy (egress-proxy.js) that therefore reaches the
+# internet from zona's address. AIOSports talks to it as http://dl-egress:8888
+# over the sports stack's network; nothing is published on the host.
+#
+# Why: DaddyLive signs each playlist for the IP that fetched the embed page and
+# refuses datacenter addresses. Only playlist-sized requests use this route;
+# video segments carry no token and go straight to the player.
+#
+# The one file not in git is the WireGuard client config, because it holds
+# peer 4's private key: /data/egress/wg/wg_confs/wg0.conf on the server.
+services:
+  dl-egress:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: dl-egress
+    cap_add: [NET_ADMIN]
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /data/egress/wg:/config
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks: [sports]
+    restart: unless-stopped
+
+  dl-proxy:
+    image: node:22-alpine
+    container_name: dl-proxy
+    network_mode: service:dl-egress
+    command: ["node", "/proxy/egress-proxy.js"]
+    volumes:
+      - ./egress-proxy.js:/proxy/egress-proxy.js:ro
+    restart: unless-stopped
+    depends_on: [dl-egress]
+
+networks:
+  sports:
+    external: true
+    name: sports_default
